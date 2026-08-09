@@ -3,10 +3,11 @@ const { pool } = require('../config/database');
 const { asyncHandler } = require('../middleware');
 const { crearNotificacionInterna } = require('./notificacionesController');
 
-// Programa de recompensas del portal de pacientes: puntos otorgados por cada
-// peso pagado, acreditados una sola vez cuando un recibo queda totalmente
-// pagado (no por abono parcial). 0.05 = 1 punto por cada $20 MXN.
-const PUNTOS_POR_PESO = 0.05;
+// Programa de recompensas del portal de pacientes: cada tratamiento
+// (servicios.puntos_recompensa, configurable desde Gestión de Servicios en
+// la app admin) otorga sus propios puntos, acreditados una sola vez cuando
+// el recibo queda totalmente pagado (no por abono parcial). Los productos
+// de inventario no otorgan puntos, solo los servicios/tratamientos.
 
 /**
  * Registrar un pago
@@ -180,25 +181,43 @@ const registrarPago = asyncHandler(async (req, res) => {
 
       // Acreditar puntos del programa de recompensas (portal de pacientes),
       // solo si el paciente ya activó su acceso (password_hash) — no tiene
-      // sentido acumular puntos que nunca podrá ver ni canjear.
+      // sentido acumular puntos que nunca podrá ver ni canjear. Cada
+      // tratamiento del recibo otorga los puntos configurados en su
+      // catálogo de servicios (servicios.puntos_recompensa); los productos
+      // de inventario no otorgan puntos.
       if (recibo.paciente_id) {
-        const puntosGanados = Math.floor(parseFloat(recibo.total) * PUNTOS_POR_PESO);
-        if (puntosGanados > 0) {
-          const [pacienteRows] = await connection.query(
-            'SELECT password_hash FROM pacientes WHERE id = ? FOR UPDATE',
-            [recibo.paciente_id]
+        const [pacienteRows] = await connection.query(
+          'SELECT password_hash FROM pacientes WHERE id = ? FOR UPDATE',
+          [recibo.paciente_id]
+        );
+
+        if (pacienteRows.length > 0 && pacienteRows[0].password_hash) {
+          const [itemsConPuntos] = await connection.query(
+            `SELECT ri.id, ri.cantidad, ri.descripcion, s.nombre as servicio_nombre, s.puntos_recompensa
+             FROM recibo_items ri
+             JOIN servicios s ON ri.servicio_id = s.id
+             WHERE ri.recibo_id = ? AND ri.tipo = 'servicio' AND s.puntos_recompensa > 0`,
+            [recibo.id]
           );
 
-          if (pacienteRows.length > 0 && pacienteRows[0].password_hash) {
-            await connection.query(
-              'UPDATE pacientes SET puntos = puntos + ? WHERE id = ?',
-              [puntosGanados, recibo.paciente_id]
-            );
+          let totalPuntosGanados = 0;
+          for (const item of itemsConPuntos) {
+            const puntosItem = (item.cantidad || 1) * item.puntos_recompensa;
+            if (puntosItem <= 0) continue;
+            totalPuntosGanados += puntosItem;
+
             await connection.query(
               `INSERT INTO paciente_recompensas_movimientos
                (consultorio_id, paciente_id, tipo, puntos, concepto, referencia_tipo, referencia_id)
-               VALUES (?, ?, 'acumulado', ?, ?, 'recibo', ?)`,
-              [req.consultorioId, recibo.paciente_id, puntosGanados, `Pago de recibo`, recibo.id]
+               VALUES (?, ?, 'acumulado', ?, ?, 'recibo_item', ?)`,
+              [req.consultorioId, recibo.paciente_id, puntosItem, item.servicio_nombre || item.descripcion, item.id]
+            );
+          }
+
+          if (totalPuntosGanados > 0) {
+            await connection.query(
+              'UPDATE pacientes SET puntos = puntos + ? WHERE id = ?',
+              [totalPuntosGanados, recibo.paciente_id]
             );
           }
         }

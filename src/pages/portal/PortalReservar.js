@@ -54,7 +54,8 @@ const ServicioOption = styled(DoctorOption)`
   justify-content: space-between;
   align-items: center;
 
-  .precio { font-weight: 700; color: ${({ theme }) => theme.colors.primary}; }
+  .precio { font-weight: 700; color: ${({ theme }) => theme.colors.primary}; text-align: right; }
+  .puntos { font-size: 11.5px; color: ${({ theme }) => theme.colors.textSecondary}; font-weight: 500; }
 `;
 
 const SlotsGrid = styled.div`
@@ -225,7 +226,10 @@ const PortalReservar = () => {
                   <div className="nombre">{s.nombre}</div>
                   {s.duracion_minutos && <div className="esp">{s.duracion_minutos} min</div>}
                 </div>
-                <div className="precio">${parseFloat(s.precio).toFixed(0)}</div>
+                <div>
+                  <div className="precio">${parseFloat(s.precio).toFixed(0)}</div>
+                  {s.puntos_recompensa > 0 && <div className="puntos">+{s.puntos_recompensa} pts</div>}
+                </div>
               </ServicioOption>
             ))
           )}

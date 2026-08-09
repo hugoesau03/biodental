@@ -692,13 +692,15 @@ CREATE TABLE IF NOT EXISTS `recibo_items` (
   `recibo_id` int NOT NULL,
   `tipo` enum('servicio','producto') COLLATE utf8mb4_unicode_ci NOT NULL,
   `producto_id` int DEFAULT NULL,
+  `servicio_id` int DEFAULT NULL COMMENT 'Referencia al tratamiento/servicio del catálogo, cuando tipo = servicio (usado para calcular puntos de recompensa por tratamiento)',
   `descripcion` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `cantidad` int DEFAULT '1',
   `precio_unitario` decimal(10,2) DEFAULT '0.00',
   `total` decimal(10,2) DEFAULT '0.00',
   PRIMARY KEY (`id`),
   KEY `recibo_id` (`recibo_id`),
-  KEY `fk_recibo_items_producto` (`producto_id`)
+  KEY `fk_recibo_items_producto` (`producto_id`),
+  KEY `fk_recibo_items_servicio` (`servicio_id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -723,6 +725,7 @@ CREATE TABLE IF NOT EXISTS `servicios` (
   `precio` decimal(10,2) DEFAULT '0.00',
   `color` varchar(7) COLLATE utf8mb4_unicode_ci DEFAULT '#4F46E5',
   `categoria` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `puntos_recompensa` int NOT NULL DEFAULT '0' COMMENT 'Puntos del programa de recompensas del portal de pacientes que otorga este tratamiento al pagarse (por unidad)',
   `activo` tinyint(1) DEFAULT '1',
   `fecha_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

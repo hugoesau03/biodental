@@ -326,11 +326,24 @@ const createRecibo = asyncHandler(async (req, res) => {
           productoId = productos[0].id;
         }
       }
-      
+
+      // Obtener servicio_id si es un tratamiento del catálogo (usado luego
+      // para calcular los puntos de recompensa por tratamiento al pagarse)
+      let servicioId = null;
+      if (item.tipo !== 'producto' && item.servicio_uuid) {
+        const [serviciosMatch] = await connection.query(
+          'SELECT id FROM servicios WHERE uuid = ? AND consultorio_id = ?',
+          [item.servicio_uuid, req.consultorioId]
+        );
+        if (serviciosMatch.length > 0) {
+          servicioId = serviciosMatch[0].id;
+        }
+      }
+
       await connection.query(
-        `INSERT INTO recibo_items (recibo_id, tipo, producto_id, descripcion, cantidad, precio_unitario, total)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [reciboId, item.tipo || 'servicio', productoId, item.descripcion, 
+        `INSERT INTO recibo_items (recibo_id, tipo, producto_id, servicio_id, descripcion, cantidad, precio_unitario, total)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [reciboId, item.tipo || 'servicio', productoId, servicioId, item.descripcion,
          item.cantidad || 1, item.precio_unitario || 0, itemTotal]
       );
       

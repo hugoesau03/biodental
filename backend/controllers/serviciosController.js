@@ -10,7 +10,7 @@ const getServicios = asyncHandler(async (req, res) => {
   const { categoria, activo } = req.query;
 
   let query = `
-    SELECT uuid, nombre, descripcion, duracion_minutos, precio, color, categoria, activo
+    SELECT uuid, nombre, descripcion, duracion_minutos, precio, color, categoria, puntos_recompensa, activo
     FROM servicios
     WHERE consultorio_id = ?
   `;
@@ -41,7 +41,7 @@ const getServicios = asyncHandler(async (req, res) => {
  * POST /api/servicios
  */
 const createServicio = asyncHandler(async (req, res) => {
-  const { nombre, descripcion, duracion_minutos, precio, color, categoria } = req.body;
+  const { nombre, descripcion, duracion_minutos, precio, color, categoria, puntos_recompensa } = req.body;
 
   if (!nombre) {
     return res.status(400).json({
@@ -50,13 +50,16 @@ const createServicio = asyncHandler(async (req, res) => {
     });
   }
 
+  const puntosNum = parseInt(puntos_recompensa, 10);
+
   const servicioUuid = uuidv4();
 
   await pool.query(
-    `INSERT INTO servicios (consultorio_id, uuid, nombre, descripcion, duracion_minutos, precio, color, categoria)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.consultorioId, servicioUuid, nombre, descripcion || null, 
-     duracion_minutos || 30, precio || 0, color || '#4F46E5', categoria || null]
+    `INSERT INTO servicios (consultorio_id, uuid, nombre, descripcion, duracion_minutos, precio, color, categoria, puntos_recompensa)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.consultorioId, servicioUuid, nombre, descripcion || null,
+     duracion_minutos || 30, precio || 0, color || '#4F46E5', categoria || null,
+     isNaN(puntosNum) || puntosNum < 0 ? 0 : puntosNum]
   );
 
   res.status(201).json({
@@ -74,13 +77,18 @@ const updateServicio = asyncHandler(async (req, res) => {
   const { uuid } = req.params;
   const updates = req.body;
 
-  const allowedFields = ['nombre', 'descripcion', 'duracion_minutos', 'precio', 'color', 'categoria', 'activo'];
+  const allowedFields = ['nombre', 'descripcion', 'duracion_minutos', 'precio', 'color', 'categoria', 'puntos_recompensa', 'activo'];
   const fieldsToUpdate = {};
 
   for (const field of allowedFields) {
     if (updates[field] !== undefined) {
       fieldsToUpdate[field] = updates[field];
     }
+  }
+
+  if (fieldsToUpdate.puntos_recompensa !== undefined) {
+    const puntosNum = parseInt(fieldsToUpdate.puntos_recompensa, 10);
+    fieldsToUpdate.puntos_recompensa = isNaN(puntosNum) || puntosNum < 0 ? 0 : puntosNum;
   }
 
   if (Object.keys(fieldsToUpdate).length === 0) {
@@ -144,9 +152,9 @@ const getServiciosDoctor = asyncHandler(async (req, res) => {
   const doctorId = doctores[0].id;
 
   const [servicios] = await pool.query(
-    `SELECT s.id, s.uuid, s.nombre, s.descripcion, s.duracion_minutos, 
+    `SELECT s.id, s.uuid, s.nombre, s.descripcion, s.duracion_minutos,
             COALESCE(ds.precio_personalizado, s.precio) as precio,
-            s.color, s.categoria, ds.activo
+            s.color, s.categoria, s.puntos_recompensa, ds.activo
      FROM doctor_servicios ds
      JOIN servicios s ON ds.servicio_id = s.id
      WHERE ds.doctor_id = ? AND ds.activo = TRUE AND s.activo = TRUE

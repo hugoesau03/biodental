@@ -13,7 +13,8 @@ import {
   Clock,
   Loader,
   Check,
-  User
+  User,
+  Gift
 } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
@@ -106,6 +107,10 @@ const ServiceDuration = styled.div`
     width: 14px;
     height: 14px;
   }
+`;
+
+const ServicePoints = styled(ServiceDuration)`
+  color: ${({ theme }) => theme.colors.primary};
 `;
 
 const ServiceDescription = styled.p`
@@ -496,7 +501,8 @@ const GestionServicios = () => {
     name: '',
     description: '',
     price: '',
-    duration: ''
+    duration: '',
+    points: ''
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState(null);
@@ -515,7 +521,8 @@ const GestionServicios = () => {
             name: s.nombre,
             description: s.descripcion || '',
             price: parseFloat(s.precio) || 0,
-            duration: s.duracion_minutos || 30
+            duration: s.duracion_minutos || 30,
+            points: s.puntos_recompensa || 0
           }));
           setServices(serviciosFormateados);
         }
@@ -572,11 +579,12 @@ const GestionServicios = () => {
         name: service.name,
         description: service.description,
         price: service.price.toString(),
-        duration: service.duration.toString()
+        duration: service.duration.toString(),
+        points: (service.points || 0).toString()
       });
     } else {
       setEditingService(null);
-      setFormData({ name: '', description: '', price: '', duration: '' });
+      setFormData({ name: '', description: '', price: '', duration: '', points: '' });
     }
     setShowModal(true);
   };
@@ -584,7 +592,7 @@ const GestionServicios = () => {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingService(null);
-    setFormData({ name: '', description: '', price: '', duration: '' });
+    setFormData({ name: '', description: '', price: '', duration: '', points: '' });
   };
 
   const handleInputChange = (e) => {
@@ -601,16 +609,17 @@ const GestionServicios = () => {
         nombre: formData.name,
         descripcion: formData.description || null,
         precio: parseFloat(formData.price),
-        duracion_minutos: parseInt(formData.duration)
+        duracion_minutos: parseInt(formData.duration),
+        puntos_recompensa: parseInt(formData.points) || 0
       };
 
       if (editingService) {
         // Editar servicio existente
         const response = await serviciosService.update(editingService.uuid, servicioData);
         if (response.success) {
-          setServices(prev => prev.map(s => 
-            s.id === editingService.id 
-              ? { ...s, name: formData.name, description: formData.description, price: parseFloat(formData.price), duration: parseInt(formData.duration) }
+          setServices(prev => prev.map(s =>
+            s.id === editingService.id
+              ? { ...s, name: formData.name, description: formData.description, price: parseFloat(formData.price), duration: parseInt(formData.duration), points: parseInt(formData.points) || 0 }
               : s
           ));
         }
@@ -624,7 +633,8 @@ const GestionServicios = () => {
             name: formData.name,
             description: formData.description || '',
             price: parseFloat(formData.price),
-            duration: parseInt(formData.duration)
+            duration: parseInt(formData.duration),
+            points: parseInt(formData.points) || 0
           };
           setServices(prev => [...prev, newService]);
           
@@ -828,6 +838,22 @@ const GestionServicios = () => {
                     step="5"
                   />
                 </FormGroup>
+
+                <FormGroup>
+                  <Label>
+                    <Gift />
+                    Puntos de recompensa (app paciente)
+                  </Label>
+                  <Input
+                    type="number"
+                    name="points"
+                    value={formData.points}
+                    onChange={handleInputChange}
+                    placeholder="Ej: 15"
+                    min="0"
+                    step="1"
+                  />
+                </FormGroup>
               </ModalBody>
 
               <ModalFooter>
@@ -869,6 +895,12 @@ const GestionServicios = () => {
                   <Clock />
                   {service.duration} minutos
                 </ServiceDuration>
+                {service.points > 0 && (
+                  <ServicePoints>
+                    <Gift />
+                    {service.points} pts
+                  </ServicePoints>
+                )}
               </ServiceMeta>
               <ServiceDescription>{service.description}</ServiceDescription>
               <ServiceActions>
@@ -964,6 +996,22 @@ const GestionServicios = () => {
                   placeholder="Ej: 30"
                   min="5"
                   step="5"
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <Label>
+                  <Gift />
+                  Puntos de recompensa (app paciente)
+                </Label>
+                <Input
+                  type="number"
+                  name="points"
+                  value={formData.points}
+                  onChange={handleInputChange}
+                  placeholder="Ej: 15"
+                  min="0"
+                  step="1"
                 />
               </FormGroup>
             </ModalBody>
