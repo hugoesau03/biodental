@@ -12,6 +12,9 @@ const {
   checkinCita,
   getCuenta,
   getRecompensas,
+  getCanjeCatalogo,
+  crearCanje,
+  getMisCanjes,
   getPromocionesActivas
 } = require('../controllers/portalController');
 const { getServiciosDoctor } = require('../controllers/serviciosController');
@@ -42,6 +45,9 @@ router.get('/doctores/:doctor_uuid/disponibilidad', getDisponibilidad);
 
 router.get('/cuenta', getCuenta);
 router.get('/recompensas', getRecompensas);
+router.get('/canje-catalogo', getCanjeCatalogo);
+router.post('/canjes', crearCanje);
+router.get('/canjes', getMisCanjes);
 router.get('/promociones', getPromocionesActivas);
 
 module.exports = router;

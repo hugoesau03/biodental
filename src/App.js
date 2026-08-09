@@ -51,6 +51,7 @@ import GenerarPresupuesto from './pages/GenerarPresupuesto';
 import Inventario from './pages/Inventario';
 import GestionConsultorios from './pages/GestionConsultorios';
 import Promociones from './pages/Promociones';
+import CanjesRecompensas from './pages/CanjesRecompensas';
 
 // Portal de pacientes (app paciente)
 import PortalLogin from './pages/portal/PortalLogin';
@@ -60,6 +61,7 @@ import PortalReservar from './pages/portal/PortalReservar';
 import PortalHistorial from './pages/portal/PortalHistorial';
 import PortalCuenta from './pages/portal/PortalCuenta';
 import PortalRecompensas from './pages/portal/PortalRecompensas';
+import PortalCanjear from './pages/portal/PortalCanjear';
 
 const AppContainer = styled.div`
   display: flex;
@@ -135,6 +137,7 @@ const AppContent = () => {
                 <Route path="/portal/historial" element={<PortalProtectedRoute><PortalHistorial /></PortalProtectedRoute>} />
                 <Route path="/portal/cuenta" element={<PortalProtectedRoute><PortalCuenta /></PortalProtectedRoute>} />
                 <Route path="/portal/recompensas" element={<PortalProtectedRoute><PortalRecompensas /></PortalProtectedRoute>} />
+                <Route path="/portal/canjear" element={<PortalProtectedRoute><PortalCanjear /></PortalProtectedRoute>} />
                 <Route path="/" element={<ProtectedRoute><Inicio /></ProtectedRoute>} />
                 <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
                 <Route path="/medicos" element={<ProtectedRoute><Medicos /></ProtectedRoute>} />
@@ -173,6 +176,7 @@ const AppContent = () => {
                 <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
                 <Route path="/gestion-consultorios" element={<ProtectedRoute><GestionConsultorios /></ProtectedRoute>} />
                 <Route path="/promociones" element={<ProtectedRoute><Promociones /></ProtectedRoute>} />
+                <Route path="/canjes-recompensas" element={<ProtectedRoute><CanjesRecompensas /></ProtectedRoute>} />
               </Routes>
             </AppLayout>
           </NotificacionesProvider>

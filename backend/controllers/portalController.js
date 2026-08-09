@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/database');
 const { asyncHandler } = require('../middleware');
 const { createCita } = require('./citasController');
@@ -390,6 +391,133 @@ const getRecompensas = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Catálogo de productos canjeables con puntos (solo los que tienen
+ * puntos_precio configurado por el admin, en stock y activos).
+ * GET /api/portal/canje-catalogo
+ */
+const getCanjeCatalogo = asyncHandler(async (req, res) => {
+  const [productos] = await pool.query(
+    `SELECT uuid, nombre, descripcion, puntos_precio, stock
+     FROM inventario
+     WHERE consultorio_id = ? AND activo = TRUE AND puntos_precio > 0 AND stock > 0
+     ORDER BY puntos_precio ASC`,
+    [req.consultorioId]
+  );
+
+  res.json({ success: true, data: { productos } });
+});
+
+/**
+ * Canjear un producto del inventario a cambio de puntos.
+ * POST /api/portal/canjes
+ * Body: { producto_uuid, cantidad? }
+ */
+const crearCanje = asyncHandler(async (req, res) => {
+  const { producto_uuid, cantidad } = req.body;
+  const cantidadNum = parseInt(cantidad, 10) || 1;
+
+  if (!producto_uuid) {
+    return res.status(400).json({ success: false, message: 'Producto es requerido' });
+  }
+
+  if (cantidadNum <= 0) {
+    return res.status(400).json({ success: false, message: 'Cantidad inválida' });
+  }
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [productos] = await connection.query(
+      `SELECT id, nombre, stock, puntos_precio FROM inventario
+       WHERE uuid = ? AND consultorio_id = ? AND activo = TRUE FOR UPDATE`,
+      [producto_uuid, req.consultorioId]
+    );
+
+    if (productos.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: 'Producto no encontrado' });
+    }
+
+    const producto = productos[0];
+
+    if (!producto.puntos_precio || producto.puntos_precio <= 0) {
+      await connection.rollback();
+      return res.status(400).json({ success: false, message: 'Este producto no está disponible para canje con puntos' });
+    }
+
+    if (producto.stock < cantidadNum) {
+      await connection.rollback();
+      return res.status(400).json({ success: false, message: `Solo quedan ${producto.stock} unidades disponibles` });
+    }
+
+    const puntosNecesarios = producto.puntos_precio * cantidadNum;
+
+    const [pacienteRows] = await connection.query(
+      'SELECT puntos FROM pacientes WHERE id = ? FOR UPDATE',
+      [req.pacienteId]
+    );
+
+    if ((pacienteRows[0]?.puntos || 0) < puntosNecesarios) {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `No tienes puntos suficientes. Necesitas ${puntosNecesarios} y tienes ${pacienteRows[0]?.puntos || 0}`
+      });
+    }
+
+    // Descontar stock y puntos
+    await connection.query('UPDATE inventario SET stock = stock - ? WHERE id = ?', [cantidadNum, producto.id]);
+    await connection.query('UPDATE pacientes SET puntos = puntos - ? WHERE id = ?', [puntosNecesarios, req.pacienteId]);
+
+    const canjeUuid = uuidv4();
+    await connection.query(
+      `INSERT INTO canjes_recompensas (consultorio_id, uuid, paciente_id, producto_id, producto_nombre, cantidad, puntos_gastados)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [req.consultorioId, canjeUuid, req.pacienteId, producto.id, producto.nombre, cantidadNum, puntosNecesarios]
+    );
+
+    await connection.query(
+      `INSERT INTO paciente_recompensas_movimientos
+       (consultorio_id, paciente_id, tipo, puntos, concepto, referencia_tipo, referencia_id)
+       VALUES (?, ?, 'canjeado', ?, ?, 'canje', LAST_INSERT_ID())`,
+      [req.consultorioId, req.pacienteId, -puntosNecesarios, `Canje: ${producto.nombre}`]
+    );
+
+    await connection.commit();
+
+    res.status(201).json({
+      success: true,
+      message: 'Canje realizado. Muéstralo en tu próxima visita para recoger tu producto.',
+      data: { uuid: canjeUuid, puntos_gastados: puntosNecesarios }
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+});
+
+/**
+ * Historial de canjes del paciente.
+ * GET /api/portal/canjes
+ */
+const getMisCanjes = asyncHandler(async (req, res) => {
+  const [canjes] = await pool.query(
+    `SELECT uuid, producto_nombre, cantidad, puntos_gastados, estado, fecha_creacion, fecha_entrega
+     FROM canjes_recompensas
+     WHERE paciente_id = ? AND consultorio_id = ?
+     ORDER BY fecha_creacion DESC`,
+    [req.pacienteId, req.consultorioId]
+  );
+
+  res.json({ success: true, data: { canjes } });
+});
+
 // ============================================
 // PROMOCIONES (solo lectura desde el portal)
 // ============================================
@@ -423,5 +551,8 @@ module.exports = {
   checkinCita,
   getCuenta,
   getRecompensas,
+  getCanjeCatalogo,
+  crearCanje,
+  getMisCanjes,
   getPromocionesActivas
 };

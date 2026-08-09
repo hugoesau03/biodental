@@ -162,6 +162,41 @@ export const portalService = {
   getPromociones: async () => {
     const response = await portalApi.get('/portal/promociones');
     return response.data;
+  },
+
+  getCanjeCatalogo: async () => {
+    const response = await portalApi.get('/portal/canje-catalogo');
+    return response.data;
+  },
+
+  crearCanje: async (productoUuid, cantidad = 1) => {
+    const response = await portalApi.post('/portal/canjes', { producto_uuid: productoUuid, cantidad });
+    return response.data;
+  },
+
+  getMisCanjes: async () => {
+    const response = await portalApi.get('/portal/canjes');
+    return response.data;
+  }
+};
+
+// ============================================
+// CANJES SERVICES (lado staff: canjes de puntos por productos)
+// ============================================
+export const canjesService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/canjes', { params });
+    return response.data;
+  },
+
+  entregar: async (uuid) => {
+    const response = await api.put(`/canjes/${uuid}/entregar`);
+    return response.data;
+  },
+
+  cancelar: async (uuid) => {
+    const response = await api.put(`/canjes/${uuid}/cancelar`);
+    return response.data;
   }
 };
 

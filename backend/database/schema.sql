@@ -52,6 +52,34 @@ CREATE TABLE IF NOT EXISTS `bloqueos_horario` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `canjes_recompensas`
+-- (Portal de pacientes: canje de productos del inventario a cambio de puntos)
+--
+
+DROP TABLE IF EXISTS `canjes_recompensas`;
+CREATE TABLE IF NOT EXISTS `canjes_recompensas` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `consultorio_id` int NOT NULL,
+  `uuid` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `paciente_id` int NOT NULL,
+  `producto_id` int DEFAULT NULL,
+  `producto_nombre` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Copia del nombre al momento del canje, por si el producto cambia o se elimina después',
+  `cantidad` int NOT NULL DEFAULT '1',
+  `puntos_gastados` int NOT NULL,
+  `estado` enum('pendiente','entregado','cancelado') COLLATE utf8mb4_unicode_ci DEFAULT 'pendiente',
+  `entregado_por` int DEFAULT NULL,
+  `fecha_entrega` timestamp NULL DEFAULT NULL,
+  `fecha_creacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uuid` (`uuid`),
+  KEY `idx_canjes_consultorio` (`consultorio_id`),
+  KEY `idx_canjes_paciente` (`paciente_id`),
+  KEY `idx_canjes_estado` (`estado`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `citas`
 --
 
@@ -377,6 +405,7 @@ CREATE TABLE IF NOT EXISTS `inventario` (
   `stock_minimo` int DEFAULT '5',
   `unidad` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'pieza',
   `proveedor` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `puntos_precio` int NOT NULL DEFAULT '0' COMMENT 'Puntos del programa de recompensas para canjear este producto desde el portal de pacientes. 0 = no canjeable con puntos',
   `activo` tinyint(1) DEFAULT '1',
   `fecha_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

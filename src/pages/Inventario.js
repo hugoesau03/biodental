@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   Pill,
   ShoppingBag,
-  Loader
+  Loader,
+  Gift
 } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
@@ -183,6 +184,20 @@ const ProductDetails = styled.div`
 const ProductPrice = styled.span`
   font-weight: ${({ theme }) => theme.fontWeights.semibold};
   color: ${({ theme }) => theme.colors.primary};
+`;
+
+const PointsBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  background: ${({ theme }) => theme.colors.primary}15;
+  color: ${({ theme }) => theme.colors.primary};
+
+  svg { width: 12px; height: 12px; }
 `;
 
 const StockBadge = styled.span`
@@ -437,7 +452,8 @@ const Inventario = () => {
     precio: '',
     stock: '',
     stock_minimo: '',
-    descripcion: ''
+    descripcion: '',
+    puntos_precio: ''
   });
 
   // Cargar productos
@@ -483,7 +499,8 @@ const Inventario = () => {
         precio: product.precio?.toString() || '',
         stock: product.stock?.toString() || '',
         stock_minimo: product.stock_minimo?.toString() || '',
-        descripcion: product.descripcion || ''
+        descripcion: product.descripcion || '',
+        puntos_precio: product.puntos_precio?.toString() || ''
       });
     } else {
       setEditingProduct(null);
@@ -493,7 +510,8 @@ const Inventario = () => {
         precio: '',
         stock: '',
         stock_minimo: '',
-        descripcion: ''
+        descripcion: '',
+        puntos_precio: ''
       });
     }
     setShowModal(true);
@@ -514,7 +532,8 @@ const Inventario = () => {
       precio: parseFloat(formData.precio),
       stock: parseInt(formData.stock),
       stock_minimo: parseInt(formData.stock_minimo) || 5,
-      descripcion: formData.descripcion
+      descripcion: formData.descripcion,
+      puntos_precio: parseInt(formData.puntos_precio) || 0
     };
 
     try {
@@ -631,6 +650,12 @@ const Inventario = () => {
                       {product.stock <= product.stock_minimo && <AlertTriangle />}
                       Stock: {product.stock}
                     </StockBadge>
+                    {product.puntos_precio > 0 && (
+                      <PointsBadge>
+                        <Gift />
+                        {product.puntos_precio} pts
+                      </PointsBadge>
+                    )}
                   </ProductDetails>
                 </ProductInfo>
                 <ProductActions>
@@ -706,6 +731,16 @@ const Inventario = () => {
                   placeholder="5"
                   value={formData.stock_minimo}
                   onChange={(e) => setFormData({ ...formData, stock_minimo: e.target.value })}
+                />
+              </FormField>
+              <FormField>
+                <Label>Puntos para canje (app paciente)</Label>
+                <Input
+                  type="number"
+                  placeholder="0 = no canjeable con puntos"
+                  min="0"
+                  value={formData.puntos_precio}
+                  onChange={(e) => setFormData({ ...formData, puntos_precio: e.target.value })}
                 />
               </FormField>
               <FormField>

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Loader, Gift, TrendingUp, TrendingDown, Settings2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Loader, Gift, TrendingUp, TrendingDown, Settings2, ShoppingBag } from 'lucide-react';
 import { portalService } from '../../services/api';
-import { PortalPage, PortalCard, PortalSectionTitle, PortalEmptyState } from '../../components/Portal/PortalUI';
+import { PortalPage, PortalCard, PortalSectionTitle, PortalEmptyState, PortalButton } from '../../components/Portal/PortalUI';
 
 const CenteredLoader = styled.div`
   display: flex;
@@ -52,6 +53,7 @@ const MovRow = styled.div`
 const tipoIcono = { acumulado: TrendingUp, canjeado: TrendingDown, ajuste: Settings2 };
 
 const PortalRecompensas = () => {
+  const navigate = useNavigate();
   const [puntos, setPuntos] = useState(0);
   const [movimientos, setMovimientos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +87,11 @@ const PortalRecompensas = () => {
         <div className="value">{puntos}</div>
         <div className="label">puntos acumulados</div>
       </HeroCard>
+
+      <PortalButton onClick={() => navigate('/portal/canjear')} style={{ marginBottom: 20 }}>
+        <ShoppingBag size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+        Canjear puntos por productos
+      </PortalButton>
 
       <PortalSectionTitle>Historial de puntos</PortalSectionTitle>
       {movimientos.length === 0 ? (

@@ -1099,6 +1099,15 @@ const Perfil = () => {
             <ChevronRight />
           </SettingRight>
         </SettingItem>
+        <SettingItem onClick={() => handleNavigation('/canjes-recompensas')}>
+          <SettingLeft>
+            <Package />
+            <SettingText>Canjes de puntos (app paciente)</SettingText>
+          </SettingLeft>
+          <SettingRight>
+            <ChevronRight />
+          </SettingRight>
+        </SettingItem>
         <SettingItem onClick={() => handleNavigation('/gestion-personal')}>
           <SettingLeft>
             <Users />

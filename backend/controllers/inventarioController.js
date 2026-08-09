@@ -11,8 +11,8 @@ const getInventario = asyncHandler(async (req, res) => {
   const { tipo, search, stock_bajo, activo } = req.query;
 
   let query = `
-    SELECT id, uuid, nombre, descripcion, tipo, sku, precio, costo, 
-           stock, stock_minimo, unidad, proveedor, activo
+    SELECT id, uuid, nombre, descripcion, tipo, sku, precio, costo,
+           stock, stock_minimo, unidad, proveedor, puntos_precio, activo
     FROM inventario
     WHERE consultorio_id = ?
   `;
@@ -112,7 +112,7 @@ const getProducto = asyncHandler(async (req, res) => {
 const createProducto = asyncHandler(async (req, res) => {
   const {
     nombre, descripcion, tipo, sku, precio, costo,
-    stock, stock_minimo, unidad, proveedor
+    stock, stock_minimo, unidad, proveedor, puntos_precio
   } = req.body;
 
   if (!nombre) {
@@ -122,15 +122,18 @@ const createProducto = asyncHandler(async (req, res) => {
     });
   }
 
+  const puntosNum = parseInt(puntos_precio, 10);
+
   const productoUuid = uuidv4();
 
   await pool.query(
-    `INSERT INTO inventario (consultorio_id, uuid, nombre, descripcion, tipo, sku, 
-                             precio, costo, stock, stock_minimo, unidad, proveedor)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.consultorioId, productoUuid, nombre, descripcion || null, 
+    `INSERT INTO inventario (consultorio_id, uuid, nombre, descripcion, tipo, sku,
+                             precio, costo, stock, stock_minimo, unidad, proveedor, puntos_precio)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.consultorioId, productoUuid, nombre, descripcion || null,
      tipo || 'producto', sku || null, precio || 0, costo || 0,
-     stock || 0, stock_minimo || 5, unidad || 'pieza', proveedor || null]
+     stock || 0, stock_minimo || 5, unidad || 'pieza', proveedor || null,
+     isNaN(puntosNum) || puntosNum < 0 ? 0 : puntosNum]
   );
 
   res.status(201).json({
@@ -150,7 +153,7 @@ const updateProducto = asyncHandler(async (req, res) => {
 
   const allowedFields = [
     'nombre', 'descripcion', 'tipo', 'sku', 'precio', 'costo',
-    'stock', 'stock_minimo', 'unidad', 'proveedor', 'activo'
+    'stock', 'stock_minimo', 'unidad', 'proveedor', 'puntos_precio', 'activo'
   ];
 
   const fieldsToUpdate = {};
@@ -158,6 +161,11 @@ const updateProducto = asyncHandler(async (req, res) => {
     if (updates[field] !== undefined) {
       fieldsToUpdate[field] = updates[field];
     }
+  }
+
+  if (fieldsToUpdate.puntos_precio !== undefined) {
+    const puntosNum = parseInt(fieldsToUpdate.puntos_precio, 10);
+    fieldsToUpdate.puntos_precio = isNaN(puntosNum) || puntosNum < 0 ? 0 : puntosNum;
   }
 
   if (Object.keys(fieldsToUpdate).length === 0) {
