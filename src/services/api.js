@@ -48,6 +48,149 @@ api.interceptors.response.use(
 export default api;
 
 // ============================================
+// PORTAL DE PACIENTES: instancia de axios independiente
+// ============================================
+// Usa sus propias claves de almacenamiento (biodental_portal_token) para que
+// una sesión de staff y una de paciente puedan convivir en el mismo
+// navegador sin pisarse, y para que un token nunca se cuele en el otro realm.
+const portalApi = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+portalApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('biodental_portal_token') || sessionStorage.getItem('biodental_portal_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+portalApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('biodental_portal_token');
+      sessionStorage.removeItem('biodental_portal_token');
+      localStorage.removeItem('biodental_portal_paciente');
+      sessionStorage.removeItem('biodental_portal_paciente');
+
+      if (!window.location.pathname.startsWith('/portal/login') && !window.location.pathname.startsWith('/portal/registro')) {
+        window.location.href = '/portal/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+export { portalApi };
+
+export const portalService = {
+  registro: async (data) => {
+    const response = await portalApi.post('/portal/auth/registro', data);
+    return response.data;
+  },
+
+  login: async (telefono, password) => {
+    const response = await portalApi.post('/portal/auth/login', { telefono, password });
+    return response.data;
+  },
+
+  getMe: async () => {
+    const response = await portalApi.get('/portal/me');
+    return response.data;
+  },
+
+  updatePassword: async (currentPassword, newPassword) => {
+    const response = await portalApi.put('/portal/password', {
+      current_password: currentPassword,
+      new_password: newPassword
+    });
+    return response.data;
+  },
+
+  getCitas: async () => {
+    const response = await portalApi.get('/portal/citas');
+    return response.data;
+  },
+
+  crearCita: async (citaData) => {
+    const response = await portalApi.post('/portal/citas', citaData);
+    return response.data;
+  },
+
+  checkin: async (citaUuid) => {
+    const response = await portalApi.post(`/portal/citas/${citaUuid}/checkin`);
+    return response.data;
+  },
+
+  getHistorial: async () => {
+    const response = await portalApi.get('/portal/historial');
+    return response.data;
+  },
+
+  getDoctores: async () => {
+    const response = await portalApi.get('/portal/doctores');
+    return response.data;
+  },
+
+  getServiciosDoctor: async (doctorUuid) => {
+    const response = await portalApi.get(`/portal/doctores/${doctorUuid}/servicios`);
+    return response.data;
+  },
+
+  getDisponibilidad: async (doctorUuid, fecha) => {
+    const response = await portalApi.get(`/portal/doctores/${doctorUuid}/disponibilidad`, { params: { fecha } });
+    return response.data;
+  },
+
+  getCuenta: async () => {
+    const response = await portalApi.get('/portal/cuenta');
+    return response.data;
+  },
+
+  getRecompensas: async () => {
+    const response = await portalApi.get('/portal/recompensas');
+    return response.data;
+  },
+
+  getPromociones: async () => {
+    const response = await portalApi.get('/portal/promociones');
+    return response.data;
+  }
+};
+
+// ============================================
+// PROMOCIONES SERVICES (lado staff: administrar promociones del portal)
+// ============================================
+export const promocionesService = {
+  getAll: async () => {
+    const response = await api.get('/promociones');
+    return response.data;
+  },
+
+  create: async (promocionData) => {
+    const response = await api.post('/promociones', promocionData);
+    return response.data;
+  },
+
+  update: async (uuid, promocionData) => {
+    const response = await api.put(`/promociones/${uuid}`, promocionData);
+    return response.data;
+  },
+
+  delete: async (uuid) => {
+    const response = await api.delete(`/promociones/${uuid}`);
+    return response.data;
+  }
+};
+
+// ============================================
 // AUTH SERVICES
 // ============================================
 export const authService = {

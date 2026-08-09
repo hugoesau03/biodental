@@ -3,6 +3,11 @@ const { pool } = require('../config/database');
 const { asyncHandler } = require('../middleware');
 const { crearNotificacionInterna } = require('./notificacionesController');
 
+// Programa de recompensas del portal de pacientes: puntos otorgados por cada
+// peso pagado, acreditados una sola vez cuando un recibo queda totalmente
+// pagado (no por abono parcial). 0.05 = 1 punto por cada $20 MXN.
+const PUNTOS_POR_PESO = 0.05;
+
 /**
  * Registrar un pago
  * POST /api/pagos
@@ -41,7 +46,7 @@ const registrarPago = asyncHandler(async (req, res) => {
 
     // Obtener el recibo (bloqueado para evitar pagos simultáneos sobre el mismo recibo)
     const [recibos] = await connection.query(
-      `SELECT id, estado, total FROM recibos WHERE uuid = ? AND consultorio_id = ? FOR UPDATE`,
+      `SELECT id, estado, total, paciente_id FROM recibos WHERE uuid = ? AND consultorio_id = ? FOR UPDATE`,
       [recibo_uuid, req.consultorioId]
     );
 
@@ -169,6 +174,32 @@ const registrarPago = asyncHandler(async (req, res) => {
               stock: nuevoStock,
               stock_minimo: item.stock_minimo
             });
+          }
+        }
+      }
+
+      // Acreditar puntos del programa de recompensas (portal de pacientes),
+      // solo si el paciente ya activó su acceso (password_hash) — no tiene
+      // sentido acumular puntos que nunca podrá ver ni canjear.
+      if (recibo.paciente_id) {
+        const puntosGanados = Math.floor(parseFloat(recibo.total) * PUNTOS_POR_PESO);
+        if (puntosGanados > 0) {
+          const [pacienteRows] = await connection.query(
+            'SELECT password_hash FROM pacientes WHERE id = ? FOR UPDATE',
+            [recibo.paciente_id]
+          );
+
+          if (pacienteRows.length > 0 && pacienteRows[0].password_hash) {
+            await connection.query(
+              'UPDATE pacientes SET puntos = puntos + ? WHERE id = ?',
+              [puntosGanados, recibo.paciente_id]
+            );
+            await connection.query(
+              `INSERT INTO paciente_recompensas_movimientos
+               (consultorio_id, paciente_id, tipo, puntos, concepto, referencia_tipo, referencia_id)
+               VALUES (?, ?, 'acumulado', ?, ?, 'recibo', ?)`,
+              [req.consultorioId, recibo.paciente_id, puntosGanados, `Pago de recibo`, recibo.id]
+            );
           }
         }
       }

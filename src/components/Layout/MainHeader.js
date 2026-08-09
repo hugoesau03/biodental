@@ -533,7 +533,7 @@ const MainHeader = () => {
 
   return (
     <HeaderContainer>
-      <Logo onClick={() => navigate('/')}>Dr. Desk</Logo>
+      <Logo onClick={() => navigate('/')}>Biodental</Logo>
       
       <DesktopNav>
         {navItems.map((item) => {

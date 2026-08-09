@@ -27,7 +27,8 @@ import {
   RefreshCw,
   Link2,
   Unlink,
-  Puzzle
+  Puzzle,
+  Gift
 } from 'lucide-react';
 import { useThemeMode } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -982,7 +983,7 @@ const Perfil = () => {
                 )}
 
                 <p style={{ fontSize: 12, color: '#9CA3AF', margin: '10px 0 0' }}>
-                  Tus citas de Dr. Desk se crean como eventos en tu calendario de Google, y los eventos
+                  Tus citas de Biodental se crean como eventos en tu calendario de Google, y los eventos
                   que agregues directamente en Google Calendar bloquean ese horario para nuevas citas
                   aquí. La sincronización ocurre automáticamente cada pocos minutos.
                 </p>
@@ -1084,6 +1085,15 @@ const Perfil = () => {
           <SettingLeft>
             <Puzzle />
             <SettingText>Integraciones (WhatsApp, Google Calendar)</SettingText>
+          </SettingLeft>
+          <SettingRight>
+            <ChevronRight />
+          </SettingRight>
+        </SettingItem>
+        <SettingItem onClick={() => handleNavigation('/promociones')}>
+          <SettingLeft>
+            <Gift />
+            <SettingText>Promociones (app paciente)</SettingText>
           </SettingLeft>
           <SettingRight>
             <ChevronRight />
@@ -1204,7 +1214,7 @@ const Perfil = () => {
         Cerrar Sesión
       </LogoutButton>
 
-      <VersionText>Dr. Desk v1.0.0</VersionText>
+      <VersionText>Biodental v1.0.0</VersionText>
     </PageContainer>
   );
 };

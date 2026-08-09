@@ -312,7 +312,7 @@ const Login = () => {
           <LogoIcon>
             <Stethoscope />
           </LogoIcon>
-          <AppName>Dr. Desk</AppName>
+          <AppName>Biodental</AppName>
           <AppTagline>Sistema de Gestión Médica</AppTagline>
         </LogoContainer>
 

@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS `citas` (
   `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `consultorio_interno_id` int DEFAULT NULL,
   `google_event_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `checkin_at` timestamp NULL DEFAULT NULL COMMENT 'Portal de pacientes: momento en que el paciente hizo check-in de su cita',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uuid` (`uuid`),
   KEY `idx_fecha` (`fecha`),
@@ -455,6 +456,8 @@ CREATE TABLE IF NOT EXISTS `pacientes` (
   `notas` text COLLATE utf8mb4_unicode_ci,
   `foto_url` longtext COLLATE utf8mb4_unicode_ci,
   `activo` tinyint(1) DEFAULT '1',
+  `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'NULL = el paciente no ha activado su acceso al portal',
+  `puntos` int NOT NULL DEFAULT '0' COMMENT 'Saldo actual del programa de recompensas (caché; el historial vive en paciente_recompensas_movimientos)',
   `fecha_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -468,6 +471,29 @@ CREATE TABLE IF NOT EXISTS `pacientes` (
 -- Volcado de datos para la tabla `pacientes`
 --
 
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `paciente_recompensas_movimientos`
+-- (Portal de pacientes: historial de puntos del programa de recompensas)
+--
+
+DROP TABLE IF EXISTS `paciente_recompensas_movimientos`;
+CREATE TABLE IF NOT EXISTS `paciente_recompensas_movimientos` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `consultorio_id` int NOT NULL,
+  `paciente_id` int NOT NULL,
+  `tipo` enum('acumulado','canjeado','ajuste') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `puntos` int NOT NULL COMMENT 'Positivo para acumulado/ajuste a favor, negativo para canjeado/ajuste en contra',
+  `concepto` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `referencia_tipo` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `referencia_id` int DEFAULT NULL,
+  `fecha_creacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_recompensas_paciente` (`paciente_id`),
+  KEY `idx_recompensas_consultorio` (`consultorio_id`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -557,6 +583,33 @@ CREATE TABLE IF NOT EXISTS `presupuesto_items` (
 -- Volcado de datos para la tabla `presupuesto_items`
 --
 
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `promociones`
+-- (Portal de pacientes: promociones visibles para los pacientes del consultorio)
+--
+
+DROP TABLE IF EXISTS `promociones`;
+CREATE TABLE IF NOT EXISTS `promociones` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `consultorio_id` int NOT NULL,
+  `uuid` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `titulo` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `mensaje` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `icono` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'gift',
+  `color` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'primary',
+  `activa` tinyint(1) DEFAULT '1',
+  `fecha_inicio` date DEFAULT NULL,
+  `fecha_fin` date DEFAULT NULL,
+  `creado_por` int DEFAULT NULL,
+  `fecha_creacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uuid` (`uuid`),
+  KEY `idx_promociones_consultorio` (`consultorio_id`),
+  KEY `idx_promociones_activa` (`activa`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 

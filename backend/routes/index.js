@@ -20,6 +20,8 @@ const whatsappRoutes = require('./whatsapp');
 const recetasRoutes = require('./recetas');
 const presupuestosRoutes = require('./presupuestos');
 const googleCalendarRoutes = require('./googleCalendar');
+const portalRoutes = require('./portal');
+const promocionesRoutes = require('./promociones');
 
 // Montar rutas
 router.use('/auth', authRoutes);
@@ -40,6 +42,8 @@ router.use('/whatsapp', whatsappRoutes);
 router.use('/recetas', recetasRoutes);
 router.use('/presupuestos', presupuestosRoutes);
 router.use('/google-calendar', googleCalendarRoutes);
+router.use('/portal', portalRoutes);
+router.use('/promociones', promocionesRoutes);
 
 // Ruta de health check
 router.get('/health', (req, res) => {

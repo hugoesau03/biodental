@@ -6,6 +6,8 @@ import styled from 'styled-components';
 import { ThemeModeProvider, useThemeMode } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificacionesProvider } from './context/NotificacionesContext';
+import { PortalAuthProvider } from './context/PortalAuthContext';
+import { PortalProtectedRoute } from './components/Portal/PortalLayout';
 import { Loader } from 'lucide-react';
 
 // Layout Components
@@ -48,6 +50,16 @@ import Integraciones from './pages/Integraciones';
 import GenerarPresupuesto from './pages/GenerarPresupuesto';
 import Inventario from './pages/Inventario';
 import GestionConsultorios from './pages/GestionConsultorios';
+import Promociones from './pages/Promociones';
+
+// Portal de pacientes (app paciente)
+import PortalLogin from './pages/portal/PortalLogin';
+import PortalRegistro from './pages/portal/PortalRegistro';
+import PortalInicio from './pages/portal/PortalInicio';
+import PortalReservar from './pages/portal/PortalReservar';
+import PortalHistorial from './pages/portal/PortalHistorial';
+import PortalCuenta from './pages/portal/PortalCuenta';
+import PortalRecompensas from './pages/portal/PortalRecompensas';
 
 const AppContainer = styled.div`
   display: flex;
@@ -87,12 +99,15 @@ const ProtectedRoute = ({ children }) => {
 const AppLayout = ({ children }) => {
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
+  // El portal de pacientes tiene su propio header/nav (PortalProtectedRoute)
+  // y su propia sesión — no debe mostrar el chrome de staff.
+  const isPortalPage = location.pathname.startsWith('/portal');
 
   return (
     <AppContainer>
-      {!isLoginPage && <MainHeader />}
+      {!isLoginPage && !isPortalPage && <MainHeader />}
       {children}
-      {!isLoginPage && <BottomNavigation />}
+      {!isLoginPage && !isPortalPage && <BottomNavigation />}
     </AppContainer>
   );
 };
@@ -106,10 +121,20 @@ const AppContent = () => {
       <GlobalStyles />
       <Router>
         <AuthProvider>
+          <PortalAuthProvider>
           <NotificacionesProvider>
             <AppLayout>
               <Routes>
                 <Route path="/login" element={<Login />} />
+
+                {/* Portal de pacientes (app paciente): sesión y layout propios */}
+                <Route path="/portal/login" element={<PortalLogin />} />
+                <Route path="/portal/registro" element={<PortalRegistro />} />
+                <Route path="/portal" element={<PortalProtectedRoute><PortalInicio /></PortalProtectedRoute>} />
+                <Route path="/portal/reservar" element={<PortalProtectedRoute><PortalReservar /></PortalProtectedRoute>} />
+                <Route path="/portal/historial" element={<PortalProtectedRoute><PortalHistorial /></PortalProtectedRoute>} />
+                <Route path="/portal/cuenta" element={<PortalProtectedRoute><PortalCuenta /></PortalProtectedRoute>} />
+                <Route path="/portal/recompensas" element={<PortalProtectedRoute><PortalRecompensas /></PortalProtectedRoute>} />
                 <Route path="/" element={<ProtectedRoute><Inicio /></ProtectedRoute>} />
                 <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
                 <Route path="/medicos" element={<ProtectedRoute><Medicos /></ProtectedRoute>} />
@@ -147,9 +172,11 @@ const AppContent = () => {
                 <Route path="/presupuestos/:uuid" element={<ProtectedRoute><GenerarPresupuesto /></ProtectedRoute>} />
                 <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
                 <Route path="/gestion-consultorios" element={<ProtectedRoute><GestionConsultorios /></ProtectedRoute>} />
+                <Route path="/promociones" element={<ProtectedRoute><Promociones /></ProtectedRoute>} />
               </Routes>
             </AppLayout>
           </NotificacionesProvider>
+          </PortalAuthProvider>
         </AuthProvider>
       </Router>
     </ThemeProvider>

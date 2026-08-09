@@ -1612,7 +1612,7 @@ const PerfilPaciente = () => {
           </div>
           
           <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB; text-align: center; color: #999; font-size: 11px;">
-            Documento generado el ${new Date().toLocaleDateString('es-MX')} | Dr. Desk - Sistema de Gestión Médica
+            Documento generado el ${new Date().toLocaleDateString('es-MX')} | Biodental - Sistema de Gestión Médica
           </div>
         `;
 

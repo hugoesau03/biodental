@@ -447,7 +447,7 @@ const Integraciones = () => {
           <SectionTitle>Google Calendar — Credenciales de la App</SectionTitle>
           <FormGroup>
             <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 12px' }}>
-              Estas credenciales identifican a Dr. Desk ante Google y son <strong>globales a toda la
+              Estas credenciales identifican a Biodental ante Google y son <strong>globales a toda la
               instalación</strong> (no por consultorio): una sola vez configuradas aquí, cualquier
               doctor de cualquier consultorio puede vincular su propio Google Calendar desde su Perfil.
             </p>
