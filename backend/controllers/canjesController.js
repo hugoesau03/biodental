@@ -14,7 +14,7 @@ const getCanjes = asyncHandler(async (req, res) => {
   const { estado } = req.query;
 
   let query = `
-    SELECT cr.uuid, cr.producto_nombre, cr.cantidad, cr.puntos_gastados, cr.estado,
+    SELECT cr.uuid, cr.tipo, cr.item_nombre, cr.cantidad, cr.puntos_gastados, cr.estado,
            cr.fecha_creacion, cr.fecha_entrega,
            p.uuid as paciente_uuid, p.nombre as paciente_nombre, p.apellidos as paciente_apellidos,
            p.telefono as paciente_telefono
@@ -106,7 +106,12 @@ const cancelarCanje = asyncHandler(async (req, res) => {
     );
 
     await connection.commit();
-    res.json({ success: true, message: 'Canje cancelado. Se devolvieron los puntos y el stock.' });
+    res.json({
+      success: true,
+      message: canje.producto_id
+        ? 'Canje cancelado. Se devolvieron los puntos y el stock.'
+        : 'Canje cancelado. Se devolvieron los puntos.'
+    });
   } catch (error) {
     await connection.rollback();
     throw error;

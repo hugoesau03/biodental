@@ -53,6 +53,16 @@ const Producto = styled.div`
   color: ${({ theme }) => theme.colors.text};
 `;
 
+const TipoTag = styled.span`
+  display: inline-block;
+  margin-bottom: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`;
+
 const Puntos = styled.span`
   font-size: 12px;
   font-weight: 600;
@@ -155,7 +165,7 @@ const CanjesRecompensas = () => {
   useEffect(() => { cargar(); }, [cargar]);
 
   const entregar = async (canje) => {
-    if (!window.confirm(`¿Confirmar que se entregó "${canje.producto_nombre}" a ${canje.paciente_nombre}?`)) return;
+    if (!window.confirm(`¿Confirmar que se entregó "${canje.item_nombre}" a ${canje.paciente_nombre}?`)) return;
     setProcesandoUuid(canje.uuid);
     try {
       await canjesService.entregar(canje.uuid);
@@ -168,7 +178,8 @@ const CanjesRecompensas = () => {
   };
 
   const cancelar = async (canje) => {
-    if (!window.confirm(`¿Cancelar este canje? Se devolverán los puntos y el stock al paciente.`)) return;
+    const devuelve = canje.tipo === 'servicio' ? 'los puntos' : 'los puntos y el stock';
+    if (!window.confirm(`¿Cancelar este canje? Se devolverán ${devuelve} al paciente.`)) return;
     setProcesandoUuid(canje.uuid);
     try {
       await canjesService.cancelar(canje.uuid);
@@ -201,7 +212,10 @@ const CanjesRecompensas = () => {
           canjes.map((c) => (
             <CanjeCard key={c.uuid}>
               <CardTop>
-                <Producto>{c.producto_nombre} {c.cantidad > 1 ? `x${c.cantidad}` : ''}</Producto>
+                <div>
+                  <TipoTag>{c.tipo === 'servicio' ? 'Tratamiento' : 'Producto'}</TipoTag>
+                  <Producto>{c.item_nombre} {c.cantidad > 1 ? `x${c.cantidad}` : ''}</Producto>
+                </div>
                 <Puntos>{c.puntos_gastados} pts</Puntos>
               </CardTop>
               <Paciente>{c.paciente_nombre} {c.paciente_apellidos}</Paciente>
@@ -211,7 +225,7 @@ const CanjesRecompensas = () => {
               {c.estado === 'pendiente' ? (
                 <Actions>
                   <ActionButton onClick={() => entregar(c)} disabled={procesandoUuid === c.uuid}>
-                    <Check /> Entregar
+                    <Check /> {c.tipo === 'servicio' ? 'Aplicado' : 'Entregar'}
                   </ActionButton>
                   <ActionButton $variant="danger" onClick={() => cancelar(c)} disabled={procesandoUuid === c.uuid}>
                     <X /> Cancelar

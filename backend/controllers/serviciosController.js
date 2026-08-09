@@ -10,7 +10,7 @@ const getServicios = asyncHandler(async (req, res) => {
   const { categoria, activo } = req.query;
 
   let query = `
-    SELECT uuid, nombre, descripcion, duracion_minutos, precio, color, categoria, puntos_recompensa, activo
+    SELECT uuid, nombre, descripcion, duracion_minutos, precio, color, categoria, puntos_recompensa, puntos_precio, activo
     FROM servicios
     WHERE consultorio_id = ?
   `;
@@ -41,7 +41,7 @@ const getServicios = asyncHandler(async (req, res) => {
  * POST /api/servicios
  */
 const createServicio = asyncHandler(async (req, res) => {
-  const { nombre, descripcion, duracion_minutos, precio, color, categoria, puntos_recompensa } = req.body;
+  const { nombre, descripcion, duracion_minutos, precio, color, categoria, puntos_recompensa, puntos_precio } = req.body;
 
   if (!nombre) {
     return res.status(400).json({
@@ -50,16 +50,18 @@ const createServicio = asyncHandler(async (req, res) => {
     });
   }
 
-  const puntosNum = parseInt(puntos_recompensa, 10);
+  const puntosGanaNum = parseInt(puntos_recompensa, 10);
+  const puntosCostoNum = parseInt(puntos_precio, 10);
 
   const servicioUuid = uuidv4();
 
   await pool.query(
-    `INSERT INTO servicios (consultorio_id, uuid, nombre, descripcion, duracion_minutos, precio, color, categoria, puntos_recompensa)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO servicios (consultorio_id, uuid, nombre, descripcion, duracion_minutos, precio, color, categoria, puntos_recompensa, puntos_precio)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [req.consultorioId, servicioUuid, nombre, descripcion || null,
      duracion_minutos || 30, precio || 0, color || '#4F46E5', categoria || null,
-     isNaN(puntosNum) || puntosNum < 0 ? 0 : puntosNum]
+     isNaN(puntosGanaNum) || puntosGanaNum < 0 ? 0 : puntosGanaNum,
+     isNaN(puntosCostoNum) || puntosCostoNum < 0 ? 0 : puntosCostoNum]
   );
 
   res.status(201).json({
@@ -77,7 +79,7 @@ const updateServicio = asyncHandler(async (req, res) => {
   const { uuid } = req.params;
   const updates = req.body;
 
-  const allowedFields = ['nombre', 'descripcion', 'duracion_minutos', 'precio', 'color', 'categoria', 'puntos_recompensa', 'activo'];
+  const allowedFields = ['nombre', 'descripcion', 'duracion_minutos', 'precio', 'color', 'categoria', 'puntos_recompensa', 'puntos_precio', 'activo'];
   const fieldsToUpdate = {};
 
   for (const field of allowedFields) {
@@ -86,9 +88,11 @@ const updateServicio = asyncHandler(async (req, res) => {
     }
   }
 
-  if (fieldsToUpdate.puntos_recompensa !== undefined) {
-    const puntosNum = parseInt(fieldsToUpdate.puntos_recompensa, 10);
-    fieldsToUpdate.puntos_recompensa = isNaN(puntosNum) || puntosNum < 0 ? 0 : puntosNum;
+  for (const campo of ['puntos_recompensa', 'puntos_precio']) {
+    if (fieldsToUpdate[campo] !== undefined) {
+      const puntosNum = parseInt(fieldsToUpdate[campo], 10);
+      fieldsToUpdate[campo] = isNaN(puntosNum) || puntosNum < 0 ? 0 : puntosNum;
+    }
   }
 
   if (Object.keys(fieldsToUpdate).length === 0) {

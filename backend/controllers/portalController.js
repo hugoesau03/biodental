@@ -392,8 +392,10 @@ const getRecompensas = asyncHandler(async (req, res) => {
 });
 
 /**
- * Catálogo de productos canjeables con puntos (solo los que tienen
- * puntos_precio configurado por el admin, en stock y activos).
+ * Catálogo canjeable con puntos: productos del inventario (con stock) y
+ * tratamientos/servicios, ambos solo si el admin les configuró un
+ * puntos_precio > 0. Se devuelven juntos, cada uno anotado con su `tipo`,
+ * para que el portal los muestre en una sola pantalla.
  * GET /api/portal/canje-catalogo
  */
 const getCanjeCatalogo = asyncHandler(async (req, res) => {
@@ -405,24 +407,43 @@ const getCanjeCatalogo = asyncHandler(async (req, res) => {
     [req.consultorioId]
   );
 
-  res.json({ success: true, data: { productos } });
+  const [servicios] = await pool.query(
+    `SELECT uuid, nombre, descripcion, puntos_precio, duracion_minutos
+     FROM servicios
+     WHERE consultorio_id = ? AND activo = TRUE AND puntos_precio > 0
+     ORDER BY puntos_precio ASC`,
+    [req.consultorioId]
+  );
+
+  res.json({
+    success: true,
+    data: {
+      productos: productos.map(p => ({ ...p, tipo: 'producto' })),
+      servicios: servicios.map(s => ({ ...s, tipo: 'servicio' }))
+    }
+  });
 });
 
 /**
- * Canjear un producto del inventario a cambio de puntos.
+ * Canjear un producto o un tratamiento a cambio de puntos.
  * POST /api/portal/canjes
- * Body: { producto_uuid, cantidad? }
+ * Body: { tipo: 'producto'|'servicio', uuid, cantidad? }
  */
 const crearCanje = asyncHandler(async (req, res) => {
-  const { producto_uuid, cantidad } = req.body;
+  const { tipo, uuid: itemUuid, cantidad } = req.body;
   const cantidadNum = parseInt(cantidad, 10) || 1;
 
-  if (!producto_uuid) {
-    return res.status(400).json({ success: false, message: 'Producto es requerido' });
+  if (!itemUuid || !['producto', 'servicio'].includes(tipo)) {
+    return res.status(400).json({ success: false, message: 'Tipo (producto/servicio) e ítem son requeridos' });
   }
 
   if (cantidadNum <= 0) {
     return res.status(400).json({ success: false, message: 'Cantidad inválida' });
+  }
+
+  // Los tratamientos no tienen stock físico; solo los productos lo requieren
+  if (tipo === 'servicio' && cantidadNum > 1) {
+    return res.status(400).json({ success: false, message: 'Los tratamientos se canjean de uno en uno' });
   }
 
   const connection = await pool.getConnection();
@@ -430,30 +451,31 @@ const crearCanje = asyncHandler(async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const [productos] = await connection.query(
-      `SELECT id, nombre, stock, puntos_precio FROM inventario
+    const tabla = tipo === 'producto' ? 'inventario' : 'servicios';
+    const [items] = await connection.query(
+      `SELECT id, nombre, puntos_precio${tipo === 'producto' ? ', stock' : ''} FROM ${tabla}
        WHERE uuid = ? AND consultorio_id = ? AND activo = TRUE FOR UPDATE`,
-      [producto_uuid, req.consultorioId]
+      [itemUuid, req.consultorioId]
     );
 
-    if (productos.length === 0) {
+    if (items.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ success: false, message: 'Producto no encontrado' });
+      return res.status(404).json({ success: false, message: tipo === 'producto' ? 'Producto no encontrado' : 'Tratamiento no encontrado' });
     }
 
-    const producto = productos[0];
+    const item = items[0];
 
-    if (!producto.puntos_precio || producto.puntos_precio <= 0) {
+    if (!item.puntos_precio || item.puntos_precio <= 0) {
       await connection.rollback();
-      return res.status(400).json({ success: false, message: 'Este producto no está disponible para canje con puntos' });
+      return res.status(400).json({ success: false, message: 'Este artículo no está disponible para canje con puntos' });
     }
 
-    if (producto.stock < cantidadNum) {
+    if (tipo === 'producto' && item.stock < cantidadNum) {
       await connection.rollback();
-      return res.status(400).json({ success: false, message: `Solo quedan ${producto.stock} unidades disponibles` });
+      return res.status(400).json({ success: false, message: `Solo quedan ${item.stock} unidades disponibles` });
     }
 
-    const puntosNecesarios = producto.puntos_precio * cantidadNum;
+    const puntosNecesarios = item.puntos_precio * cantidadNum;
 
     const [pacienteRows] = await connection.query(
       'SELECT puntos FROM pacientes WHERE id = ? FOR UPDATE',
@@ -468,29 +490,37 @@ const crearCanje = asyncHandler(async (req, res) => {
       });
     }
 
-    // Descontar stock y puntos
-    await connection.query('UPDATE inventario SET stock = stock - ? WHERE id = ?', [cantidadNum, producto.id]);
+    if (tipo === 'producto') {
+      await connection.query('UPDATE inventario SET stock = stock - ? WHERE id = ?', [cantidadNum, item.id]);
+    }
     await connection.query('UPDATE pacientes SET puntos = puntos - ? WHERE id = ?', [puntosNecesarios, req.pacienteId]);
 
     const canjeUuid = uuidv4();
     await connection.query(
-      `INSERT INTO canjes_recompensas (consultorio_id, uuid, paciente_id, producto_id, producto_nombre, cantidad, puntos_gastados)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [req.consultorioId, canjeUuid, req.pacienteId, producto.id, producto.nombre, cantidadNum, puntosNecesarios]
+      `INSERT INTO canjes_recompensas (consultorio_id, uuid, paciente_id, tipo, producto_id, servicio_id, item_nombre, cantidad, puntos_gastados)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        req.consultorioId, canjeUuid, req.pacienteId, tipo,
+        tipo === 'producto' ? item.id : null,
+        tipo === 'servicio' ? item.id : null,
+        item.nombre, cantidadNum, puntosNecesarios
+      ]
     );
 
     await connection.query(
       `INSERT INTO paciente_recompensas_movimientos
        (consultorio_id, paciente_id, tipo, puntos, concepto, referencia_tipo, referencia_id)
        VALUES (?, ?, 'canjeado', ?, ?, 'canje', LAST_INSERT_ID())`,
-      [req.consultorioId, req.pacienteId, -puntosNecesarios, `Canje: ${producto.nombre}`]
+      [req.consultorioId, req.pacienteId, -puntosNecesarios, `Canje: ${item.nombre}`]
     );
 
     await connection.commit();
 
     res.status(201).json({
       success: true,
-      message: 'Canje realizado. Muéstralo en tu próxima visita para recoger tu producto.',
+      message: tipo === 'producto'
+        ? 'Canje realizado. Muéstralo en tu próxima visita para recoger tu producto.'
+        : 'Canje realizado. Muéstralo en tu próxima visita para aplicar tu tratamiento.',
       data: { uuid: canjeUuid, puntos_gastados: puntosNecesarios }
     });
 
@@ -508,7 +538,7 @@ const crearCanje = asyncHandler(async (req, res) => {
  */
 const getMisCanjes = asyncHandler(async (req, res) => {
   const [canjes] = await pool.query(
-    `SELECT uuid, producto_nombre, cantidad, puntos_gastados, estado, fecha_creacion, fecha_entrega
+    `SELECT uuid, tipo, item_nombre, cantidad, puntos_gastados, estado, fecha_creacion, fecha_entrega
      FROM canjes_recompensas
      WHERE paciente_id = ? AND consultorio_id = ?
      ORDER BY fecha_creacion DESC`,

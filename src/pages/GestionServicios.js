@@ -502,7 +502,8 @@ const GestionServicios = () => {
     description: '',
     price: '',
     duration: '',
-    points: ''
+    points: '',
+    pointsPrice: ''
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState(null);
@@ -522,7 +523,8 @@ const GestionServicios = () => {
             description: s.descripcion || '',
             price: parseFloat(s.precio) || 0,
             duration: s.duracion_minutos || 30,
-            points: s.puntos_recompensa || 0
+            points: s.puntos_recompensa || 0,
+            pointsPrice: s.puntos_precio || 0
           }));
           setServices(serviciosFormateados);
         }
@@ -580,11 +582,12 @@ const GestionServicios = () => {
         description: service.description,
         price: service.price.toString(),
         duration: service.duration.toString(),
-        points: (service.points || 0).toString()
+        points: (service.points || 0).toString(),
+        pointsPrice: (service.pointsPrice || 0).toString()
       });
     } else {
       setEditingService(null);
-      setFormData({ name: '', description: '', price: '', duration: '', points: '' });
+      setFormData({ name: '', description: '', price: '', duration: '', points: '', pointsPrice: '' });
     }
     setShowModal(true);
   };
@@ -592,7 +595,7 @@ const GestionServicios = () => {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingService(null);
-    setFormData({ name: '', description: '', price: '', duration: '', points: '' });
+    setFormData({ name: '', description: '', price: '', duration: '', points: '', pointsPrice: '' });
   };
 
   const handleInputChange = (e) => {
@@ -610,7 +613,8 @@ const GestionServicios = () => {
         descripcion: formData.description || null,
         precio: parseFloat(formData.price),
         duracion_minutos: parseInt(formData.duration),
-        puntos_recompensa: parseInt(formData.points) || 0
+        puntos_recompensa: parseInt(formData.points) || 0,
+        puntos_precio: parseInt(formData.pointsPrice) || 0
       };
 
       if (editingService) {
@@ -619,7 +623,7 @@ const GestionServicios = () => {
         if (response.success) {
           setServices(prev => prev.map(s =>
             s.id === editingService.id
-              ? { ...s, name: formData.name, description: formData.description, price: parseFloat(formData.price), duration: parseInt(formData.duration), points: parseInt(formData.points) || 0 }
+              ? { ...s, name: formData.name, description: formData.description, price: parseFloat(formData.price), duration: parseInt(formData.duration), points: parseInt(formData.points) || 0, pointsPrice: parseInt(formData.pointsPrice) || 0 }
               : s
           ));
         }
@@ -634,7 +638,8 @@ const GestionServicios = () => {
             description: formData.description || '',
             price: parseFloat(formData.price),
             duration: parseInt(formData.duration),
-            points: parseInt(formData.points) || 0
+            points: parseInt(formData.points) || 0,
+            pointsPrice: parseInt(formData.pointsPrice) || 0
           };
           setServices(prev => [...prev, newService]);
           
@@ -854,6 +859,22 @@ const GestionServicios = () => {
                     step="1"
                   />
                 </FormGroup>
+
+                <FormGroup>
+                  <Label>
+                    <Gift />
+                    Puntos para canjear este tratamiento (app paciente)
+                  </Label>
+                  <Input
+                    type="number"
+                    name="pointsPrice"
+                    value={formData.pointsPrice}
+                    onChange={handleInputChange}
+                    placeholder="0 = no canjeable con puntos"
+                    min="0"
+                    step="1"
+                  />
+                </FormGroup>
               </ModalBody>
 
               <ModalFooter>
@@ -898,7 +919,13 @@ const GestionServicios = () => {
                 {service.points > 0 && (
                   <ServicePoints>
                     <Gift />
-                    {service.points} pts
+                    +{service.points} pts
+                  </ServicePoints>
+                )}
+                {service.pointsPrice > 0 && (
+                  <ServicePoints>
+                    <Gift />
+                    Canje: {service.pointsPrice} pts
                   </ServicePoints>
                 )}
               </ServiceMeta>
@@ -1010,6 +1037,22 @@ const GestionServicios = () => {
                   value={formData.points}
                   onChange={handleInputChange}
                   placeholder="Ej: 15"
+                  min="0"
+                  step="1"
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <Label>
+                  <Gift />
+                  Puntos para canjear este tratamiento (app paciente)
+                </Label>
+                <Input
+                  type="number"
+                  name="pointsPrice"
+                  value={formData.pointsPrice}
+                  onChange={handleInputChange}
+                  placeholder="0 = no canjeable con puntos"
                   min="0"
                   step="1"
                 />

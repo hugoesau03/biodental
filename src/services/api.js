@@ -169,8 +169,8 @@ export const portalService = {
     return response.data;
   },
 
-  crearCanje: async (productoUuid, cantidad = 1) => {
-    const response = await portalApi.post('/portal/canjes', { producto_uuid: productoUuid, cantidad });
+  crearCanje: async (tipo, uuid, cantidad = 1) => {
+    const response = await portalApi.post('/portal/canjes', { tipo, uuid, cantidad });
     return response.data;
   },
 

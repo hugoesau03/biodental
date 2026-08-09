@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { Loader, Gift, Package, ChevronLeft, CheckCircle } from 'lucide-react';
+import { Loader, Gift, Package, Stethoscope, ChevronLeft, CheckCircle } from 'lucide-react';
 import { portalService } from '../../services/api';
-import { PortalPage, PortalCard, PortalSectionTitle, PortalEmptyState, PortalButton, PortalBadge } from '../../components/Portal/PortalUI';
+import { PortalPage, PortalCard, PortalSectionTitle, PortalEmptyState, PortalBadge } from '../../components/Portal/PortalUI';
 
 const CenteredLoader = styled.div`
   display: flex;
@@ -60,7 +60,6 @@ const RedeemButton = styled.button`
   border: none;
   font-weight: 600;
   font-size: 13.5px;
-  cursor: pointer;
   background: ${({ $disabled, theme }) => ($disabled ? theme.colors.gray : theme.colors.primary)};
   color: ${({ $disabled, theme }) => ($disabled ? theme.colors.textSecondary : 'white')};
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
@@ -71,6 +70,7 @@ const EstadoColor = { pendiente: 'warning', entregado: 'success', cancelado: 'da
 const PortalCanjear = () => {
   const navigate = useNavigate();
   const [productos, setProductos] = useState([]);
+  const [servicios, setServicios] = useState([]);
   const [canjes, setCanjes] = useState([]);
   const [puntos, setPuntos] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -85,6 +85,7 @@ const PortalCanjear = () => {
         portalService.getMisCanjes()
       ]);
       setProductos(catalogoRes.data?.productos || []);
+      setServicios(catalogoRes.data?.servicios || []);
       setPuntos(recompensasRes.data?.puntos || 0);
       setCanjes(canjesRes.data?.canjes || []);
     } catch (err) {
@@ -96,13 +97,14 @@ const PortalCanjear = () => {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const canjear = async (producto) => {
-    if (puntos < producto.puntos_precio) return;
-    if (!window.confirm(`¿Canjear "${producto.nombre}" por ${producto.puntos_precio} puntos?`)) return;
+  const canjear = async (item) => {
+    if (puntos < item.puntos_precio) return;
+    const etiqueta = item.tipo === 'servicio' ? 'tratamiento' : 'producto';
+    if (!window.confirm(`¿Canjear "${item.nombre}" (${etiqueta}) por ${item.puntos_precio} puntos?`)) return;
 
-    setCanjeandoUuid(producto.uuid);
+    setCanjeandoUuid(item.uuid);
     try {
-      const res = await portalService.crearCanje(producto.uuid, 1);
+      const res = await portalService.crearCanje(item.tipo, item.uuid, 1);
       alert(res.message || 'Canje realizado');
       await cargar();
     } catch (err) {
@@ -120,6 +122,30 @@ const PortalCanjear = () => {
     );
   }
 
+  const renderItem = (item, Icon) => {
+    const alcanza = puntos >= item.puntos_precio;
+    return (
+      <PortalCard key={item.uuid}>
+        <ProductRow>
+          <div className="icon"><Icon /></div>
+          <div className="info">
+            <div className="nombre">{item.nombre}</div>
+            {item.descripcion && <div className="desc">{item.descripcion}</div>}
+            {item.tipo === 'servicio' && item.duracion_minutos && <div className="desc">{item.duracion_minutos} min</div>}
+          </div>
+          <div className="puntos">{item.puntos_precio} pts</div>
+        </ProductRow>
+        <RedeemButton
+          $disabled={!alcanza || canjeandoUuid === item.uuid}
+          disabled={!alcanza || canjeandoUuid === item.uuid}
+          onClick={() => canjear(item)}
+        >
+          {canjeandoUuid === item.uuid ? 'Canjeando...' : alcanza ? 'Canjear' : `Te faltan ${item.puntos_precio - puntos} pts`}
+        </RedeemButton>
+      </PortalCard>
+    );
+  };
+
   return (
     <PortalPage>
       <BackRow onClick={() => navigate('/portal/recompensas')}><ChevronLeft /> Regresar</BackRow>
@@ -129,32 +155,18 @@ const PortalCanjear = () => {
         <div className="label">disponibles para canjear</div>
       </PointsHeader>
 
-      <PortalSectionTitle>Productos disponibles</PortalSectionTitle>
+      <PortalSectionTitle>Tratamientos</PortalSectionTitle>
+      {servicios.length === 0 ? (
+        <PortalCard><PortalEmptyState>Por ahora no hay tratamientos disponibles para canje.</PortalEmptyState></PortalCard>
+      ) : (
+        servicios.map((s) => renderItem({ ...s, tipo: 'servicio' }, Stethoscope))
+      )}
+
+      <PortalSectionTitle>Productos</PortalSectionTitle>
       {productos.length === 0 ? (
         <PortalCard><PortalEmptyState>Por ahora no hay productos disponibles para canje.</PortalEmptyState></PortalCard>
       ) : (
-        productos.map((p) => {
-          const alcanza = puntos >= p.puntos_precio;
-          return (
-            <PortalCard key={p.uuid}>
-              <ProductRow>
-                <div className="icon"><Package /></div>
-                <div className="info">
-                  <div className="nombre">{p.nombre}</div>
-                  {p.descripcion && <div className="desc">{p.descripcion}</div>}
-                </div>
-                <div className="puntos">{p.puntos_precio} pts</div>
-              </ProductRow>
-              <RedeemButton
-                $disabled={!alcanza || canjeandoUuid === p.uuid}
-                disabled={!alcanza || canjeandoUuid === p.uuid}
-                onClick={() => canjear(p)}
-              >
-                {canjeandoUuid === p.uuid ? 'Canjeando...' : alcanza ? 'Canjear' : `Te faltan ${p.puntos_precio - puntos} pts`}
-              </RedeemButton>
-            </PortalCard>
-          );
-        })
+        productos.map((p) => renderItem({ ...p, tipo: 'producto' }, Package))
       )}
 
       {canjes.length > 0 && (
@@ -167,8 +179,10 @@ const PortalCanjear = () => {
                   {c.estado === 'entregado' ? <CheckCircle color="#10B981" /> : <Gift />}
                 </div>
                 <div className="info">
-                  <div className="nombre">{c.producto_nombre}</div>
-                  <div className="desc">{new Date(c.fecha_creacion).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                  <div className="nombre">{c.item_nombre}</div>
+                  <div className="desc">
+                    {c.tipo === 'servicio' ? 'Tratamiento' : 'Producto'} · {new Date(c.fecha_creacion).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </div>
                 </div>
                 <PortalBadge $color={EstadoColor[c.estado] || 'info'}>{c.estado}</PortalBadge>
               </ProductRow>
