@@ -301,7 +301,10 @@ const EditarPaciente = () => {
     genero: 'otro',
     email: '',
     telefono: '',
-    alergias: ''
+    padecimientos: '',
+    medicamentos: '',
+    alergias: '',
+    motivo_consulta: ''
   });
 
   // Cargar datos del paciente
@@ -327,7 +330,10 @@ const EditarPaciente = () => {
             genero: patient.genero || 'otro',
             email: patient.email || '',
             telefono: patient.telefono || '',
-            alergias: patient.alergias || ''
+            padecimientos: patient.padecimientos || '',
+            medicamentos: patient.medicamentos || '',
+            alergias: patient.alergias || '',
+            motivo_consulta: patient.motivo_consulta || ''
           });
           setPatientType(patient.tipo || 'adulto');
           if (patient.foto_url) {
@@ -382,7 +388,10 @@ const EditarPaciente = () => {
         tipo: patientType,
         email: formData.email || null,
         telefono: formData.telefono || null,
+        padecimientos: formData.padecimientos || null,
+        medicamentos: formData.medicamentos || null,
         alergias: formData.alergias || null,
+        motivo_consulta: formData.motivo_consulta || null,
         foto_url: patientPhoto || null
       };
       
@@ -574,11 +583,38 @@ const EditarPaciente = () => {
             </FormField>
 
             <FormField>
+              <Label>Padecimientos</Label>
+              <TextArea
+                placeholder="Padecimientos actuales o antecedentes médicos..."
+                value={formData.padecimientos}
+                onChange={(e) => setFormData({...formData, padecimientos: e.target.value})}
+              />
+            </FormField>
+
+            <FormField>
+              <Label>Medicamentos</Label>
+              <TextArea
+                placeholder="Lista de medicamentos actuales..."
+                value={formData.medicamentos}
+                onChange={(e) => setFormData({...formData, medicamentos: e.target.value})}
+              />
+            </FormField>
+
+            <FormField>
               <Label>Alergias</Label>
               <TextArea
                 placeholder="Describe las alergias del paciente..."
                 value={formData.alergias}
                 onChange={(e) => setFormData({...formData, alergias: e.target.value})}
+              />
+            </FormField>
+
+            <FormField>
+              <Label>Motivo de Consulta</Label>
+              <TextArea
+                placeholder="Motivo principal de la consulta..."
+                value={formData.motivo_consulta}
+                onChange={(e) => setFormData({...formData, motivo_consulta: e.target.value})}
               />
             </FormField>
           </FormSection>

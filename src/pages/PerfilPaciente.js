@@ -2204,8 +2204,23 @@ const PerfilPaciente = () => {
           </FormField>
 
           <FormField style={{ marginTop: '16px' }}>
-            <Label>Historial de Alergias</Label>
+            <Label>Padecimientos</Label>
+            <TextArea value={patient.padecimientos || 'Sin padecimientos registrados'} disabled />
+          </FormField>
+
+          <FormField style={{ marginTop: '16px' }}>
+            <Label>Medicamentos</Label>
+            <TextArea value={patient.medicamentos || 'Sin medicamentos registrados'} disabled />
+          </FormField>
+
+          <FormField style={{ marginTop: '16px' }}>
+            <Label>Alergias</Label>
             <TextArea value={patient.alergias || 'Sin alergias registradas'} disabled />
+          </FormField>
+
+          <FormField style={{ marginTop: '16px' }}>
+            <Label>Motivo de Consulta</Label>
+            <TextArea value={patient.motivo_consulta || 'Sin motivo registrado'} disabled />
           </FormField>
         </Section>
 

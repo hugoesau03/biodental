@@ -116,7 +116,8 @@ const createPaciente = asyncHandler(async (req, res) => {
     nombre, apellidos, fecha_nacimiento, genero, tipo,
     email, telefono, telefono_emergencia, direccion, ciudad,
     codigo_postal, dni, seguro_medico, numero_seguro,
-    grupo_sanguineo, alergias, antecedentes, notas
+    grupo_sanguineo, alergias, antecedentes, notas,
+    padecimientos, medicamentos, motivo_consulta
   } = req.body;
 
   if (!nombre) {
@@ -146,18 +147,20 @@ const createPaciente = asyncHandler(async (req, res) => {
 
   const [result] = await pool.query(
     `INSERT INTO pacientes (
-      consultorio_id, uuid, numero_expediente, nombre, apellidos, 
+      consultorio_id, uuid, numero_expediente, nombre, apellidos,
       fecha_nacimiento, genero, tipo, email, telefono, telefono_emergencia,
       direccion, ciudad, codigo_postal, dni, seguro_medico, numero_seguro,
-      grupo_sanguineo, alergias, antecedentes, notas
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      grupo_sanguineo, alergias, antecedentes, notas,
+      padecimientos, medicamentos, motivo_consulta
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       req.consultorioId, pacienteUuid, numeroExpediente, nombre, apellidos || '',
       fecha_nacimiento || null, genero || 'otro', tipo || 'adulto',
       email || null, telefono || null, telefono_emergencia || null,
       direccion || null, ciudad || null, codigo_postal || null,
       dni || null, seguro_medico || null, numero_seguro || null,
-      grupo_sanguineo || null, alergias || null, antecedentes || null, notas || null
+      grupo_sanguineo || null, alergias || null, antecedentes || null, notas || null,
+      padecimientos || null, medicamentos || null, motivo_consulta || null
     ]
   );
 
@@ -215,7 +218,8 @@ const updatePaciente = asyncHandler(async (req, res) => {
     'nombre', 'apellidos', 'fecha_nacimiento', 'genero', 'tipo',
     'email', 'telefono', 'telefono_emergencia', 'direccion', 'ciudad',
     'codigo_postal', 'dni', 'seguro_medico', 'numero_seguro',
-    'grupo_sanguineo', 'alergias', 'antecedentes', 'notas', 'foto_url', 'activo'
+    'grupo_sanguineo', 'alergias', 'antecedentes', 'notas', 'foto_url', 'activo',
+    'padecimientos', 'medicamentos', 'motivo_consulta'
   ];
 
   const fieldsToUpdate = {};

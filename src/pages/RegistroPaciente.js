@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { User, Heart, Pill, Camera, Trash2, Info, CheckCircle } from 'lucide-react';
+import { User, Heart, Pill, Camera, Trash2, Info, CheckCircle, Activity, FileText } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import { pacientesService } from '../services/api';
 
@@ -454,8 +454,10 @@ const SecondaryActionBtn = styled.button`
 const RegistroPaciente = () => {
   const navigate = useNavigate();
   const [patientType, setPatientType] = useState('Adulto');
-  const [allergiesOpen, setAllergiesOpen] = useState(false);
+  const [padecimientosOpen, setPadecimientosOpen] = useState(false);
   const [medicationsOpen, setMedicationsOpen] = useState(false);
+  const [allergiesOpen, setAllergiesOpen] = useState(false);
+  const [motivoConsultaOpen, setMotivoConsultaOpen] = useState(false);
   const [patientPhoto, setPatientPhoto] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdPatientUuid, setCreatedPatientUuid] = useState(null);
@@ -470,8 +472,10 @@ const RegistroPaciente = () => {
     email: '',
     phone: '',
     address: '',
+    padecimientos: '',
+    medications: '',
     allergies: '',
-    medications: ''
+    motivo_consulta: ''
   });
 
   const handlePhotoSelect = (e) => {
@@ -517,8 +521,10 @@ const RegistroPaciente = () => {
         email: formData.email || null,
         telefono: formData.phone || null,
         direccion: formData.address || null,
+        padecimientos: formData.padecimientos || null,
+        medicamentos: formData.medications || null,
         alergias: formData.allergies || null,
-        notas: formData.medications ? `Medicamentos: ${formData.medications}` : null,
+        motivo_consulta: formData.motivo_consulta || null,
         foto_url: patientPhoto || null
       };
       
@@ -765,19 +771,19 @@ const RegistroPaciente = () => {
             <CollapsibleSection>
               <CollapsibleHeader
                 type="button"
-                onClick={() => setAllergiesOpen(!allergiesOpen)}
+                onClick={() => setPadecimientosOpen(!padecimientosOpen)}
               >
                 <CollapsibleTitle>
-                  <Heart />
-                  Alergias
+                  <Activity />
+                  Padecimientos
                 </CollapsibleTitle>
-                <span>{allergiesOpen ? '−' : '+'}</span>
+                <span>{padecimientosOpen ? '−' : '+'}</span>
               </CollapsibleHeader>
-              <CollapsibleContent $isOpen={allergiesOpen}>
+              <CollapsibleContent $isOpen={padecimientosOpen}>
                 <TextArea
-                  name="allergies"
-                  placeholder="Describe las alergias conocidas..."
-                  value={formData.allergies}
+                  name="padecimientos"
+                  placeholder="Describe los padecimientos actuales o antecedentes médicos..."
+                  value={formData.padecimientos}
                   onChange={handleChange}
                 />
               </CollapsibleContent>
@@ -799,6 +805,48 @@ const RegistroPaciente = () => {
                   name="medications"
                   placeholder="Lista de medicamentos actuales..."
                   value={formData.medications}
+                  onChange={handleChange}
+                />
+              </CollapsibleContent>
+            </CollapsibleSection>
+
+            <CollapsibleSection>
+              <CollapsibleHeader
+                type="button"
+                onClick={() => setAllergiesOpen(!allergiesOpen)}
+              >
+                <CollapsibleTitle>
+                  <Heart />
+                  Alergias
+                </CollapsibleTitle>
+                <span>{allergiesOpen ? '−' : '+'}</span>
+              </CollapsibleHeader>
+              <CollapsibleContent $isOpen={allergiesOpen}>
+                <TextArea
+                  name="allergies"
+                  placeholder="Describe las alergias conocidas..."
+                  value={formData.allergies}
+                  onChange={handleChange}
+                />
+              </CollapsibleContent>
+            </CollapsibleSection>
+
+            <CollapsibleSection>
+              <CollapsibleHeader
+                type="button"
+                onClick={() => setMotivoConsultaOpen(!motivoConsultaOpen)}
+              >
+                <CollapsibleTitle>
+                  <FileText />
+                  Motivo de Consulta
+                </CollapsibleTitle>
+                <span>{motivoConsultaOpen ? '−' : '+'}</span>
+              </CollapsibleHeader>
+              <CollapsibleContent $isOpen={motivoConsultaOpen}>
+                <TextArea
+                  name="motivo_consulta"
+                  placeholder="Motivo principal de la consulta..."
+                  value={formData.motivo_consulta}
                   onChange={handleChange}
                 />
               </CollapsibleContent>
