@@ -424,6 +424,37 @@ CREATE TABLE IF NOT EXISTS `inventario` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `movimientos_externos`
+-- (Corte de caja: ingresos/egresos que no vienen de un recibo de servicio,
+-- p. ej. venta de mostrador, pago a proveedor. Documentada en
+-- CAMBIOS_CORTE_CAJA.md — faltaba consolidar aquí desde add_movimientos.sql)
+--
+
+DROP TABLE IF EXISTS `movimientos_externos`;
+CREATE TABLE IF NOT EXISTS `movimientos_externos` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `consultorio_id` int NOT NULL,
+  `uuid` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo` enum('ingreso','egreso') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `concepto` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `descripcion` text COLLATE utf8mb4_unicode_ci,
+  `monto` decimal(10,2) NOT NULL,
+  `metodo_pago` enum('efectivo','tarjeta','transferencia','otro') COLLATE utf8mb4_unicode_ci DEFAULT 'efectivo',
+  `referencia` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `categoria` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `registrado_por` int DEFAULT NULL,
+  `fecha_movimiento` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `fecha_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uuid` (`uuid`),
+  KEY `idx_movimientos_consultorio` (`consultorio_id`),
+  KEY `idx_movimientos_fecha` (`fecha_movimiento`),
+  KEY `registrado_por` (`registrado_por`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `notificaciones`
 --
 
