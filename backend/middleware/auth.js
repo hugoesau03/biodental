@@ -24,8 +24,8 @@ const authMiddleware = async (req, res, next) => {
 
     // Buscar usuario en la base de datos
     const [users] = await pool.query(
-      `SELECT u.id, u.uuid, u.email, u.nombre, u.apellidos, u.rol, u.consultorio_id, 
-              u.especialidad, u.activo, c.nombre as consultorio_nombre, c.uuid as consultorio_uuid
+      `SELECT u.id, u.uuid, u.email, u.nombre, u.apellidos, u.rol, u.consultorio_id,
+              u.especialidad, u.activo, u.es_superadmin, c.nombre as consultorio_nombre, c.uuid as consultorio_uuid
        FROM usuarios u
        JOIN consultorios c ON u.consultorio_id = c.id
        WHERE u.id = ? AND u.activo = TRUE AND c.activo = TRUE`,
@@ -92,6 +92,31 @@ const requireRole = (...roles) => {
 };
 
 /**
+ * Middleware para acciones exclusivas del superadmin de la plataforma
+ * (p. ej. dar de alta consultorios nuevos). Es una bandera aparte del rol
+ * admin/doctor/recepcionista/asistente — no reemplaza a requireRole, se usa
+ * junto a él cuando la acción no debe depender del consultorio del usuario
+ * sino de si es el operador de la plataforma.
+ */
+const requireSuperadmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'No autenticado'
+    });
+  }
+
+  if (!req.user.es_superadmin) {
+    return res.status(403).json({
+      success: false,
+      message: 'No tienes permisos para realizar esta acción'
+    });
+  }
+
+  next();
+};
+
+/**
  * Middleware para verificar que el recurso pertenece al consultorio
  * Se usa después de authMiddleware
  */
@@ -110,5 +135,6 @@ const validateConsultorio = async (req, res, next) => {
 module.exports = {
   authMiddleware,
   requireRole,
+  requireSuperadmin,
   validateConsultorio
 };

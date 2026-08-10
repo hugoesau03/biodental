@@ -28,7 +28,8 @@ import {
   Link2,
   Unlink,
   Puzzle,
-  Gift
+  Gift,
+  PlusCircle
 } from 'lucide-react';
 import { useThemeMode } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -1162,6 +1163,17 @@ const Perfil = () => {
             <ChevronRight />
           </SettingRight>
         </SettingItem>
+        {user?.es_superadmin && (
+          <SettingItem onClick={() => handleNavigation('/crear-consultorio')}>
+            <SettingLeft>
+              <PlusCircle />
+              <SettingText>Crear Consultorio (nuevo cliente)</SettingText>
+            </SettingLeft>
+            <SettingRight>
+              <ChevronRight />
+            </SettingRight>
+          </SettingItem>
+        )}
       </Section>
 
       <Section>

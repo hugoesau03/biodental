@@ -50,6 +50,7 @@ import Integraciones from './pages/Integraciones';
 import GenerarPresupuesto from './pages/GenerarPresupuesto';
 import Inventario from './pages/Inventario';
 import GestionConsultorios from './pages/GestionConsultorios';
+import CrearConsultorio from './pages/CrearConsultorio';
 import Promociones from './pages/Promociones';
 import CanjesRecompensas from './pages/CanjesRecompensas';
 
@@ -175,6 +176,7 @@ const AppContent = () => {
                 <Route path="/presupuestos/:uuid" element={<ProtectedRoute><GenerarPresupuesto /></ProtectedRoute>} />
                 <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
                 <Route path="/gestion-consultorios" element={<ProtectedRoute><GestionConsultorios /></ProtectedRoute>} />
+                <Route path="/crear-consultorio" element={<ProtectedRoute><CrearConsultorio /></ProtectedRoute>} />
                 <Route path="/promociones" element={<ProtectedRoute><Promociones /></ProtectedRoute>} />
                 <Route path="/canjes-recompensas" element={<ProtectedRoute><CanjesRecompensas /></ProtectedRoute>} />
               </Routes>
