@@ -366,7 +366,7 @@ const Login = () => {
               />
               Recordarme
             </CheckboxLabel>
-            <ForgotPassword type="button">
+            <ForgotPassword type="button" onClick={() => navigate('/olvide-password')}>
               ¿Olvidaste tu contraseña?
             </ForgotPassword>
           </RememberRow>

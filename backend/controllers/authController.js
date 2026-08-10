@@ -362,10 +362,65 @@ const updatePassword = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Restablecer contraseña sin conocer la anterior (pantalla "olvidé mi
+ * contraseña"). Pública, protegida solo por loginLimiter. NOTA: es una
+ * solución provisional — solo valida el email, sin verificación adicional
+ * (link/código por correo). Sirve para recuperar acceso ahora mismo; si más
+ * adelante se agrega envío de correos, esto debería reemplazarse por un
+ * flujo con token de un solo uso.
+ * POST /api/auth/reset-password
+ */
+const resetPassword = asyncHandler(async (req, res) => {
+  const { email, new_password } = req.body;
+
+  if (!email || !new_password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Se requiere email y nueva contraseña'
+    });
+  }
+
+  if (new_password.length < 8) {
+    return res.status(400).json({
+      success: false,
+      message: 'La nueva contraseña debe tener al menos 8 caracteres'
+    });
+  }
+
+  const [users] = await pool.query(
+    `SELECT u.id FROM usuarios u
+     JOIN consultorios c ON u.consultorio_id = c.id
+     WHERE u.email = ? AND u.activo = TRUE AND c.activo = TRUE`,
+    [email]
+  );
+
+  if (users.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'No existe una cuenta activa con ese correo'
+    });
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(new_password, salt);
+
+  await pool.query(
+    'UPDATE usuarios SET password_hash = ? WHERE id = ?',
+    [passwordHash, users[0].id]
+  );
+
+  res.json({
+    success: true,
+    message: 'Contraseña restablecida exitosamente'
+  });
+});
+
 module.exports = {
   register,
   crearConsultorio,
   login,
   getMe,
-  updatePassword
+  updatePassword,
+  resetPassword
 };

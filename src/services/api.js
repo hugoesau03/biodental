@@ -255,6 +255,14 @@ export const authService = {
       new_password: newPassword
     });
     return response.data;
+  },
+
+  resetPassword: async (email, newPassword) => {
+    const response = await api.post('/auth/reset-password', {
+      email,
+      new_password: newPassword
+    });
+    return response.data;
   }
 };
 

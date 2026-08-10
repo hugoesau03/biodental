@@ -16,6 +16,7 @@ import MainHeader from './components/Layout/MainHeader';
 
 // Pages
 import Login from './pages/Login';
+import OlvidePassword from './pages/OlvidePassword';
 import Inicio from './pages/Inicio';
 import Agenda from './pages/Agenda';
 import Medicos from './pages/Medicos';
@@ -101,7 +102,7 @@ const ProtectedRoute = ({ children }) => {
 // Componente Layout que oculta header/navigation en login
 const AppLayout = ({ children }) => {
   const location = useLocation();
-  const isLoginPage = location.pathname === '/login';
+  const isLoginPage = location.pathname === '/login' || location.pathname === '/olvide-password';
   // El portal de pacientes tiene su propio header/nav (PortalProtectedRoute)
   // y su propia sesión — no debe mostrar el chrome de staff.
   const isPortalPage = location.pathname.startsWith('/portal');
@@ -129,6 +130,7 @@ const AppContent = () => {
             <AppLayout>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/olvide-password" element={<OlvidePassword />} />
 
                 {/* Portal de pacientes (app paciente): sesión y layout propios */}
                 <Route path="/portal/login" element={<PortalLogin />} />
