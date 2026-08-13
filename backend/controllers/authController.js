@@ -1,8 +1,13 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/database');
 const { asyncHandler } = require('../middleware');
+const { enviarEmailResetPassword } = require('../services/emailService');
+
+// Tiempo de validez de un token de restablecimiento de contraseña
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
 
 /**
  * Lógica compartida para dar de alta un consultorio (tenant) nuevo junto
@@ -75,7 +80,7 @@ const crearConsultorioConAdmin = async ({
     const consultorioId = consultorioResult.insertId;
 
     // Hash de contraseña
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Crear usuario admin
@@ -347,12 +352,16 @@ const updatePassword = asyncHandler(async (req, res) => {
   }
 
   // Hash de nueva contraseña
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12);
   const passwordHash = await bcrypt.hash(new_password, salt);
 
-  // Actualizar
+  // Actualizar. tokens_invalidos_antes = NOW() cierra cualquier otra
+  // sesión activa (incluida la que hizo esta misma petición, en su
+  // siguiente uso) — si cambiaste tu contraseña, es razonable tener que
+  // volver a iniciar sesión. El interceptor de axios del frontend ya
+  // maneja el 401 resultante redirigiendo a /login.
   await pool.query(
-    'UPDATE usuarios SET password_hash = ? WHERE id = ?',
+    'UPDATE usuarios SET password_hash = ?, tokens_invalidos_antes = NOW() WHERE id = ?',
     [passwordHash, req.user.id]
   );
 
@@ -363,21 +372,108 @@ const updatePassword = asyncHandler(async (req, res) => {
 });
 
 /**
- * Restablecer contraseña sin conocer la anterior (pantalla "olvidé mi
- * contraseña"). Pública, protegida solo por loginLimiter. NOTA: es una
- * solución provisional — solo valida el email, sin verificación adicional
- * (link/código por correo). Sirve para recuperar acceso ahora mismo; si más
- * adelante se agrega envío de correos, esto debería reemplazarse por un
- * flujo con token de un solo uso.
- * POST /api/auth/reset-password
+ * Cerrar sesión en todos los dispositivos: invalida cualquier token JWT
+ * emitido antes de ahora (incluido el que se usa para llamar este mismo
+ * endpoint). El JWT es sin estado — antes de esto, "logout" solo borraba
+ * el token del navegador y el token seguía siendo válido en el servidor
+ * hasta que expirara solo.
+ * POST /api/auth/logout
  */
-const resetPassword = asyncHandler(async (req, res) => {
-  const { email, new_password } = req.body;
+const logout = asyncHandler(async (req, res) => {
+  await pool.query(
+    'UPDATE usuarios SET tokens_invalidos_antes = NOW() WHERE id = ?',
+    [req.user.id]
+  );
 
-  if (!email || !new_password) {
+  res.json({
+    success: true,
+    message: 'Sesión cerrada en todos los dispositivos'
+  });
+});
+
+/**
+ * Solicitar restablecimiento de contraseña — paso 1 de la pantalla "olvidé
+ * mi contraseña". Genera un token de un solo uso (válido 1 hora), lo guarda
+ * hasheado (SHA-256; el token en claro solo viaja en el enlace del correo)
+ * y envía el enlace por correo a través de emailService.
+ *
+ * Responde siempre con el mismo mensaje genérico, exista o no una cuenta
+ * con ese correo — de lo contrario este endpoint serviría para averiguar
+ * qué correos están registrados (enumeración de cuentas). Pública,
+ * protegida solo por loginLimiter.
+ * POST /api/auth/solicitar-reset-password
+ */
+const MENSAJE_SOLICITUD_RESET = 'Si existe una cuenta activa con ese correo, te enviamos un enlace para restablecer tu contraseña.';
+
+const solicitarResetPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
     return res.status(400).json({
       success: false,
-      message: 'Se requiere email y nueva contraseña'
+      message: 'Se requiere un correo electrónico'
+    });
+  }
+
+  const [users] = await pool.query(
+    `SELECT u.id, u.nombre, u.email FROM usuarios u
+     JOIN consultorios c ON u.consultorio_id = c.id
+     WHERE u.email = ? AND u.activo = TRUE AND c.activo = TRUE`,
+    [email]
+  );
+
+  if (users.length === 0) {
+    // Mismo mensaje que en el caso de éxito — no revelar si la cuenta existe.
+    return res.json({ success: true, message: MENSAJE_SOLICITUD_RESET });
+  }
+
+  const usuario = users[0];
+
+  // Invalidar cualquier token previo sin usar antes de crear uno nuevo, para
+  // que solo el enlace más reciente enviado por correo funcione.
+  await pool.query(
+    'DELETE FROM password_reset_tokens WHERE usuario_id = ? AND usado_en IS NULL',
+    [usuario.id]
+  );
+
+  const tokenPlano = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(tokenPlano).digest('hex');
+  const expiracion = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+  await pool.query(
+    'INSERT INTO password_reset_tokens (usuario_id, token_hash, fecha_expiracion) VALUES (?, ?, ?)',
+    [usuario.id, tokenHash, expiracion]
+  );
+
+  const baseUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+  const resetUrl = `${baseUrl}/restablecer-password?token=${tokenPlano}`;
+
+  try {
+    await enviarEmailResetPassword({ to: usuario.email, nombre: usuario.nombre, resetUrl });
+  } catch (error) {
+    // No revelar el fallo de envío al cliente — el mensaje sigue siendo
+    // genérico. El error queda en logs para que se pueda investigar.
+    console.error('Error enviando correo de restablecimiento de contraseña:', error.message);
+  }
+
+  res.json({ success: true, message: MENSAJE_SOLICITUD_RESET });
+});
+
+/**
+ * Confirmar restablecimiento de contraseña — paso 2. Recibe el token en
+ * claro (el que llegó por correo) y lo valida comparando su hash contra lo
+ * guardado; si es válido, no expiró y no fue usado antes, actualiza la
+ * contraseña y marca el token como consumido. Pública, protegida solo por
+ * loginLimiter.
+ * POST /api/auth/confirmar-reset-password
+ */
+const confirmarResetPassword = asyncHandler(async (req, res) => {
+  const { token, new_password } = req.body;
+
+  if (!token || !new_password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Se requiere el token del enlace y la nueva contraseña'
     });
   }
 
@@ -388,31 +484,51 @@ const resetPassword = asyncHandler(async (req, res) => {
     });
   }
 
-  const [users] = await pool.query(
-    `SELECT u.id FROM usuarios u
-     JOIN consultorios c ON u.consultorio_id = c.id
-     WHERE u.email = ? AND u.activo = TRUE AND c.activo = TRUE`,
-    [email]
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+  const [tokens] = await pool.query(
+    'SELECT id, usuario_id, fecha_expiracion, usado_en FROM password_reset_tokens WHERE token_hash = ?',
+    [tokenHash]
   );
 
-  if (users.length === 0) {
-    return res.status(404).json({
+  if (tokens.length === 0) {
+    return res.status(400).json({
       success: false,
-      message: 'No existe una cuenta activa con ese correo'
+      message: 'El enlace no es válido. Solicita uno nuevo.'
     });
   }
 
-  const salt = await bcrypt.genSalt(10);
+  const resetToken = tokens[0];
+
+  if (resetToken.usado_en) {
+    return res.status(400).json({
+      success: false,
+      message: 'Este enlace ya fue utilizado. Solicita uno nuevo.'
+    });
+  }
+
+  if (new Date(resetToken.fecha_expiracion) < new Date()) {
+    return res.status(400).json({
+      success: false,
+      message: 'El enlace expiró. Solicita uno nuevo.'
+    });
+  }
+
+  const salt = await bcrypt.genSalt(12);
   const passwordHash = await bcrypt.hash(new_password, salt);
 
+  // tokens_invalidos_antes = NOW(): un reset de contraseña suele ser señal
+  // de que alguien perdió acceso (o alguien más lo tuvo) — cierra todas
+  // las sesiones que hubiera abiertas con la contraseña anterior.
   await pool.query(
-    'UPDATE usuarios SET password_hash = ? WHERE id = ?',
-    [passwordHash, users[0].id]
+    'UPDATE usuarios SET password_hash = ?, tokens_invalidos_antes = NOW() WHERE id = ?',
+    [passwordHash, resetToken.usuario_id]
   );
+  await pool.query('UPDATE password_reset_tokens SET usado_en = NOW() WHERE id = ?', [resetToken.id]);
 
   res.json({
     success: true,
-    message: 'Contraseña restablecida exitosamente'
+    message: 'Contraseña restablecida correctamente. Ya puedes iniciar sesión.'
   });
 });
 
@@ -422,5 +538,7 @@ module.exports = {
   login,
   getMe,
   updatePassword,
-  resetPassword
+  logout,
+  solicitarResetPassword,
+  confirmarResetPassword
 };

@@ -2,6 +2,10 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/database');
 const { asyncHandler } = require('../middleware');
+const { validarArchivoBase64 } = require('../utils/archivoValidator');
+
+const AVATAR_MIMES_PERMITIDOS = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2MB — de sobra para una foto de perfil
 
 /**
  * Obtener todos los usuarios/doctores del consultorio
@@ -135,7 +139,7 @@ const createUsuario = asyncHandler(async (req, res) => {
   }
 
   // Hash password
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12);
   const passwordHash = await bcrypt.hash(password, salt);
 
   const usuarioUuid = uuidv4();
@@ -192,14 +196,28 @@ const updateUsuario = asyncHandler(async (req, res) => {
     });
   }
 
+  // avatar_blob viaja como data URL base64 (no hay subida multipart en
+  // este backend) — antes se guardaba tal cual, sin verificar que fuera
+  // realmente una imagen ni su tamaño real.
+  if (updates.avatar_blob !== undefined && updates.avatar_blob !== null && updates.avatar_blob !== '') {
+    const resultado = validarArchivoBase64(updates.avatar_blob, {
+      mimesPermitidos: AVATAR_MIMES_PERMITIDOS,
+      maxBytes: AVATAR_MAX_BYTES
+    });
+
+    if (!resultado.valido) {
+      return res.status(400).json({ success: false, message: resultado.error });
+    }
+  }
+
   // Campos que cualquier usuario puede editar en su propio perfil
   const selfEditableFields = ['avatar_url', 'avatar_blob', 'descripcion'];
-  
+
   // Campos que solo admin puede editar
   const adminOnlyFields = ['nombre', 'apellidos', 'telefono', 'rol', 'especialidad', 'numero_licencia', 'activo'];
 
   const fieldsToUpdate = {};
-  
+
   // Procesar campos según permisos
   for (const field of selfEditableFields) {
     if (updates[field] !== undefined) {
@@ -223,7 +241,7 @@ const updateUsuario = asyncHandler(async (req, res) => {
           message: 'La contraseña debe tener al menos 8 caracteres'
         });
       }
-      const salt = await bcrypt.genSalt(10);
+      const salt = await bcrypt.genSalt(12);
       fieldsToUpdate.password_hash = await bcrypt.hash(updates.password, salt);
     }
   }

@@ -82,6 +82,30 @@ CREATE TABLE IF NOT EXISTS `canjes_recompensas` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `chat_mensajes`
+-- (Chat en vivo entre el paciente y recepción, dentro de la app paciente)
+--
+
+DROP TABLE IF EXISTS `chat_mensajes`;
+CREATE TABLE IF NOT EXISTS `chat_mensajes` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `consultorio_id` int NOT NULL,
+  `paciente_id` int NOT NULL,
+  `remitente` enum('paciente','staff') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `remitente_usuario_id` int DEFAULT NULL COMMENT 'Usuario del staff que envió el mensaje, cuando remitente = staff',
+  `mensaje` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `leido_paciente` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'El paciente ya vio este mensaje (solo aplica a mensajes de staff)',
+  `leido_staff` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'El staff ya vio este mensaje (solo aplica a mensajes del paciente)',
+  `fecha_creacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_chat_consultorio` (`consultorio_id`),
+  KEY `idx_chat_paciente` (`paciente_id`),
+  KEY `idx_chat_fecha` (`fecha_creacion`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `citas`
 --
 
@@ -181,8 +205,9 @@ CREATE TABLE IF NOT EXISTS `consultorios` (
   `estado` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `codigo_postal` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `logo_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `logo_blob` longtext COLLATE utf8mb4_unicode_ci COMMENT 'Ícono/logo de la app subido desde Apariencia, como data URI base64 (igual que usuarios.avatar_blob). logo_url queda para una URL externa opcional.',
   `sitio_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `configuracion` json DEFAULT NULL,
+  `configuracion` json DEFAULT NULL COMMENT 'JSON con subclaves por integración/sección: whatsapp, google, apariencia ({color_fondo, color_principal, color_texto}), etc.',
   `plan` enum('basico','profesional','enterprise') COLLATE utf8mb4_unicode_ci DEFAULT 'basico',
   `activo` tinyint(1) DEFAULT '1',
   `fecha_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -523,6 +548,9 @@ CREATE TABLE IF NOT EXISTS `pacientes` (
   `activo` tinyint(1) DEFAULT '1',
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'NULL = el paciente no ha activado su acceso al portal',
   `puntos` int NOT NULL DEFAULT '0' COMMENT 'Saldo actual del programa de recompensas (caché; el historial vive en paciente_recompensas_movimientos)',
+  `tokens_invalidos_antes` timestamp NULL DEFAULT NULL COMMENT 'Revocación de JWT: tokens con iat anterior a esta fecha se rechazan (logout-todos-los-dispositivos, cambio de contraseña)',
+  `terminos_aceptados_en` timestamp NULL DEFAULT NULL COMMENT 'Momento en que el paciente aceptó los términos y condiciones del portal (POST /api/portal/auth/registro). NULL = nunca los aceptó (p. ej. cuentas creadas antes de existir este campo).',
+  `privacidad_aceptada_en` timestamp NULL DEFAULT NULL COMMENT 'Momento en que el paciente dio su consentimiento expreso al Aviso de Privacidad (datos personales sensibles de salud), en POST /api/portal/auth/registro.',
   `fecha_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -588,6 +616,66 @@ CREATE TABLE IF NOT EXISTS `pagos` (
 
 --
 -- Volcado de datos para la tabla `pagos`
+--
+
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `password_reset_tokens`
+--
+-- Tokens de un solo uso para el flujo "olvidé mi contraseña" (usuarios de
+-- staff). Se guarda un hash SHA-256 del token, nunca el token en claro —
+-- el token real solo viaja por el enlace del correo. Expira a la hora y se
+-- marca `usado_en` al consumirse para que no pueda reutilizarse.
+--
+
+DROP TABLE IF EXISTS `password_reset_tokens`;
+CREATE TABLE IF NOT EXISTS `password_reset_tokens` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `usuario_id` int NOT NULL,
+  `token_hash` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'SHA-256 hex del token en claro enviado por correo',
+  `fecha_expiracion` timestamp NOT NULL,
+  `usado_en` timestamp NULL DEFAULT NULL,
+  `fecha_creacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `token_hash` (`token_hash`),
+  KEY `idx_password_reset_usuario` (`usuario_id`),
+  KEY `idx_password_reset_expiracion` (`fecha_expiracion`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Volcado de datos para la tabla `password_reset_tokens`
+--
+
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `portal_password_reset_tokens`
+--
+-- Igual que `password_reset_tokens`, pero para el portal de pacientes —
+-- tabla separada (en vez de una columna nullable compartida) porque staff
+-- y pacientes ya son "realms" completamente separados en este sistema
+-- (JWT distinto, middleware distinto: authMiddleware vs authPaciente).
+--
+
+DROP TABLE IF EXISTS `portal_password_reset_tokens`;
+CREATE TABLE IF NOT EXISTS `portal_password_reset_tokens` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `paciente_id` int NOT NULL,
+  `token_hash` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'SHA-256 hex del token en claro enviado por correo',
+  `fecha_expiracion` timestamp NOT NULL,
+  `usado_en` timestamp NULL DEFAULT NULL,
+  `fecha_creacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `token_hash` (`token_hash`),
+  KEY `idx_portal_password_reset_paciente` (`paciente_id`),
+  KEY `idx_portal_password_reset_expiracion` (`fecha_expiracion`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Volcado de datos para la tabla `portal_password_reset_tokens`
 --
 
 
@@ -665,6 +753,7 @@ CREATE TABLE IF NOT EXISTS `promociones` (
   `mensaje` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `icono` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'gift',
   `color` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'primary',
+  `imagen_blob` longtext COLLATE utf8mb4_unicode_ci COMMENT 'Imagen del banner en el carrusel de la app paciente, como data URI base64',
   `activa` tinyint(1) DEFAULT '1',
   `fecha_inicio` date DEFAULT NULL,
   `fecha_fin` date DEFAULT NULL,
@@ -793,6 +882,7 @@ CREATE TABLE IF NOT EXISTS `servicios` (
   `puntos_recompensa` int NOT NULL DEFAULT '0' COMMENT 'Puntos del programa de recompensas del portal de pacientes que otorga este tratamiento al pagarse (por unidad)',
   `puntos_precio` int NOT NULL DEFAULT '0' COMMENT 'Puntos para canjear este tratamiento desde el portal de pacientes en vez de pagarlo. 0 = no canjeable con puntos',
   `activo` tinyint(1) DEFAULT '1',
+  `agendable_bot` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si el paciente puede agendar este servicio a través del asistente de WhatsApp',
   `fecha_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -851,6 +941,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `descripcion` text COLLATE utf8mb4_unicode_ci,
   `activo` tinyint(1) DEFAULT '1',
   `ultimo_login` timestamp NULL DEFAULT NULL,
+  `tokens_invalidos_antes` timestamp NULL DEFAULT NULL COMMENT 'Revocación de JWT: tokens con iat anterior a esta fecha se rechazan (logout-todos-los-dispositivos, cambio de contraseña)',
   `fecha_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

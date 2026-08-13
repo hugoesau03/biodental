@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
-import { Gift, X, Loader, Trash2, Edit2 } from 'lucide-react';
+import { Gift, X, Loader, Trash2, Edit2, Image } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import FloatingButton from '../components/Layout/FloatingButton';
 import { promocionesService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -190,15 +191,63 @@ const SaveButton = styled.button`
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 
-const formVacio = { titulo: '', mensaje: '', fecha_inicio: '', fecha_fin: '', activa: true };
+const formVacio = { titulo: '', mensaje: '', fecha_inicio: '', fecha_fin: '', activa: true, imagen_blob: null };
+
+const ImageUploadBox = styled.div`
+  width: 100%;
+  height: 140px;
+  border: 2px dashed ${({ theme }) => theme.colors.border};
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  background: ${({ theme }) => theme.colors.background};
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+  svg { width: 26px; height: 26px; }
+  span { font-size: 12.5px; }
+`;
+
+const RemoveImageBtn = styled.button`
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: white;
+  svg { width: 14px; height: 14px; }
+`;
+
+const CardBanner = styled.img`
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 10px;
+`;
 
 const Promociones = () => {
+  const { showAlert, showConfirm } = useAlert();
   const [promociones, setPromociones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editando, setEditando] = useState(null);
   const [form, setForm] = useState(formVacio);
   const [guardando, setGuardando] = useState(false);
+  const fileInputRef = useRef(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -227,14 +276,27 @@ const Promociones = () => {
       mensaje: promo.mensaje,
       fecha_inicio: promo.fecha_inicio ? String(promo.fecha_inicio).substring(0, 10) : '',
       fecha_fin: promo.fecha_fin ? String(promo.fecha_fin).substring(0, 10) : '',
-      activa: !!promo.activa
+      activa: !!promo.activa,
+      imagen_blob: promo.imagen_blob || null
     });
     setModalAbierto(true);
   };
 
+  const handleImagenChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1.5 * 1024 * 1024) {
+      showAlert('La imagen es muy pesada. Usa una de menos de 1.5 MB.', { tipo: 'warning' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => setForm((prev) => ({ ...prev, imagen_blob: reader.result }));
+    reader.readAsDataURL(file);
+  };
+
   const guardar = async () => {
     if (!form.titulo || !form.mensaje) {
-      alert('Título y mensaje son requeridos');
+      showAlert('Título y mensaje son requeridos', { tipo: 'warning' });
       return;
     }
     setGuardando(true);
@@ -247,19 +309,19 @@ const Promociones = () => {
       setModalAbierto(false);
       await cargar();
     } catch (err) {
-      alert(err.response?.data?.message || 'Error al guardar la promoción');
+      showAlert(err.response?.data?.message || 'Error al guardar la promoción', { tipo: 'error' });
     } finally {
       setGuardando(false);
     }
   };
 
   const eliminar = async (promo) => {
-    if (!window.confirm(`¿Eliminar la promoción "${promo.titulo}"?`)) return;
+    if (!(await showConfirm(`¿Eliminar la promoción "${promo.titulo}"?`))) return;
     try {
       await promocionesService.delete(promo.uuid);
       await cargar();
     } catch (err) {
-      alert(err.response?.data?.message || 'Error al eliminar la promoción');
+      showAlert(err.response?.data?.message || 'Error al eliminar la promoción', { tipo: 'error' });
     }
   };
 
@@ -268,7 +330,7 @@ const Promociones = () => {
       await promocionesService.update(promo.uuid, { activa: !promo.activa });
       await cargar();
     } catch (err) {
-      alert('Error al actualizar la promoción');
+      showAlert('Error al actualizar la promoción', { tipo: 'error' });
     }
   };
 
@@ -290,6 +352,7 @@ const Promociones = () => {
         ) : (
           promociones.map((promo) => (
             <PromoCard key={promo.uuid} $activa={promo.activa}>
+              {promo.imagen_blob && <CardBanner src={promo.imagen_blob} alt={promo.titulo} />}
               <CardTop>
                 <div>
                   <Titulo>{promo.titulo}</Titulo>
@@ -324,6 +387,25 @@ const Promociones = () => {
               <button onClick={() => setModalAbierto(false)}><X /></button>
             </ModalHeader>
             <ModalBody>
+              <div>
+                <FormLabel>Imagen del banner (carrusel en la app paciente)</FormLabel>
+                <ImageUploadBox onClick={() => fileInputRef.current?.click()}>
+                  {form.imagen_blob ? (
+                    <>
+                      <img src={form.imagen_blob} alt="Banner" />
+                      <RemoveImageBtn onClick={(e) => { e.stopPropagation(); setForm({ ...form, imagen_blob: null }); }}>
+                        <X />
+                      </RemoveImageBtn>
+                    </>
+                  ) : (
+                    <>
+                      <Image />
+                      <span>Toca para subir una imagen</span>
+                    </>
+                  )}
+                </ImageUploadBox>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImagenChange} style={{ display: 'none' }} />
+              </div>
               <div>
                 <FormLabel>Título</FormLabel>
                 <FormInput value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} placeholder="20% de descuento en limpieza dental" />

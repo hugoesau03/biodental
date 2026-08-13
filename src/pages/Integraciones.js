@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { MessageCircle, Phone, Globe, FileText, Shield, Link2, Loader } from 'lucide-react';
+import { MessageCircle, Phone, Globe, FileText, Shield, Link2, Loader, Key, Cpu, HelpCircle } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import { useAuth } from '../context/AuthContext';
 import { consultorioService, googleCalendarService, API_URL } from '../services/api';
@@ -113,10 +113,18 @@ const Integraciones = () => {
     prefijoPais: '+52',
     templateConfirmacion: '',
     templateRecordatorio: '',
-    templateLang: 'es_MX'
+    templateLang: 'es_MX',
+    webhookSecretInput: ''
   });
   const [savingWhatsapp, setSavingWhatsapp] = useState(false);
   const [whatsappSaveMessage, setWhatsappSaveMessage] = useState(null);
+
+  // Asistente de WhatsApp con IA (GPT/OpenAI) — el agente Python
+  // (whatsapp-agentkit) lee esta configuración de aquí en vez de un .env.
+  const [asistenteIAConfig, setAsistenteIAConfig] = useState(null);
+  const [asistenteIAForm, setAsistenteIAForm] = useState({ apiKeyInput: '', modelo: 'gpt-4.1' });
+  const [savingAsistenteIA, setSavingAsistenteIA] = useState(false);
+  const [asistenteIASaveMessage, setAsistenteIASaveMessage] = useState(null);
 
   // Google Calendar — credenciales OAuth de la app (globales a la instalación)
   const [googleAppConfig, setGoogleAppConfig] = useState(null);
@@ -141,11 +149,22 @@ const Integraciones = () => {
             prefijoPais: whatsappRes.data.prefijo_pais || '+52',
             templateConfirmacion: whatsappRes.data.template_confirmacion || '',
             templateRecordatorio: whatsappRes.data.template_recordatorio || '',
-            templateLang: whatsappRes.data.template_lang || 'es_MX'
+            templateLang: whatsappRes.data.template_lang || 'es_MX',
+            webhookSecretInput: ''
           });
         }
       } catch (err) {
         console.error('Error cargando configuración de WhatsApp:', err);
+      }
+
+      try {
+        const asistenteRes = await consultorioService.getAsistenteIAConfig();
+        if (asistenteRes.success) {
+          setAsistenteIAConfig(asistenteRes.data);
+          setAsistenteIAForm({ apiKeyInput: '', modelo: asistenteRes.data.modelo || 'gpt-4.1' });
+        }
+      } catch (err) {
+        console.error('Error cargando configuración del asistente de WhatsApp:', err);
       }
 
       try {
@@ -183,14 +202,15 @@ const Integraciones = () => {
         prefijo_pais: whatsappForm.prefijoPais,
         template_confirmacion: whatsappForm.templateConfirmacion,
         template_recordatorio: whatsappForm.templateRecordatorio,
-        template_lang: whatsappForm.templateLang
+        template_lang: whatsappForm.templateLang,
+        webhook_secret: whatsappForm.webhookSecretInput || undefined
       });
 
       if (response.success) {
         const whatsappRes = await consultorioService.getWhatsappConfig();
         if (whatsappRes.success) {
           setWhatsappConfig(whatsappRes.data);
-          setWhatsappForm(prev => ({ ...prev, apiKeyInput: '' }));
+          setWhatsappForm(prev => ({ ...prev, apiKeyInput: '', webhookSecretInput: '' }));
         }
         setWhatsappSaveMessage({ success: true, text: 'Configuración de WhatsApp guardada' });
       } else {
@@ -223,6 +243,79 @@ const Integraciones = () => {
       setWhatsappSaveMessage({ success: false, text: 'Error al eliminar la clave' });
     } finally {
       setSavingWhatsapp(false);
+    }
+  };
+
+  const handleClearWebhookSecret = async () => {
+    setSavingWhatsapp(true);
+    setWhatsappSaveMessage(null);
+    try {
+      await consultorioService.updateWhatsappConfig({ clear_webhook_secret: true });
+      const whatsappRes = await consultorioService.getWhatsappConfig();
+      if (whatsappRes.success) {
+        setWhatsappConfig(whatsappRes.data);
+        setWhatsappForm(prev => ({ ...prev, webhookSecretInput: '' }));
+      }
+      setWhatsappSaveMessage({ success: true, text: 'Secreto de webhook eliminado' });
+    } catch (error) {
+      console.error('Error eliminando el secreto de webhook:', error);
+      setWhatsappSaveMessage({ success: false, text: 'Error al eliminar el secreto de webhook' });
+    } finally {
+      setSavingWhatsapp(false);
+    }
+  };
+
+  const handleAsistenteIAFormChange = (field, value) => {
+    setAsistenteIAForm(prev => ({ ...prev, [field]: value }));
+    setAsistenteIASaveMessage(null);
+  };
+
+  const handleSaveAsistenteIA = async () => {
+    setSavingAsistenteIA(true);
+    setAsistenteIASaveMessage(null);
+    try {
+      const response = await consultorioService.updateAsistenteIAConfig({
+        api_key: asistenteIAForm.apiKeyInput || undefined,
+        modelo: asistenteIAForm.modelo
+      });
+
+      if (response.success) {
+        const asistenteRes = await consultorioService.getAsistenteIAConfig();
+        if (asistenteRes.success) {
+          setAsistenteIAConfig(asistenteRes.data);
+          setAsistenteIAForm(prev => ({ ...prev, apiKeyInput: '' }));
+        }
+        setAsistenteIASaveMessage({ success: true, text: 'Configuración del asistente guardada' });
+      } else {
+        setAsistenteIASaveMessage({ success: false, text: response.message || 'Error al guardar' });
+      }
+    } catch (error) {
+      console.error('Error guardando configuración del asistente de WhatsApp:', error);
+      setAsistenteIASaveMessage({
+        success: false,
+        text: error.response?.data?.message || 'Error al guardar la configuración del asistente'
+      });
+    } finally {
+      setSavingAsistenteIA(false);
+    }
+  };
+
+  const handleClearAsistenteIAKey = async () => {
+    setSavingAsistenteIA(true);
+    setAsistenteIASaveMessage(null);
+    try {
+      await consultorioService.updateAsistenteIAConfig({ clear_api_key: true });
+      const asistenteRes = await consultorioService.getAsistenteIAConfig();
+      if (asistenteRes.success) {
+        setAsistenteIAConfig(asistenteRes.data);
+        setAsistenteIAForm(prev => ({ ...prev, apiKeyInput: '' }));
+      }
+      setAsistenteIASaveMessage({ success: true, text: 'Clave eliminada' });
+    } catch (error) {
+      console.error('Error eliminando clave del asistente:', error);
+      setAsistenteIASaveMessage({ success: false, text: 'Error al eliminar la clave' });
+    } finally {
+      setSavingAsistenteIA(false);
     }
   };
 
@@ -380,13 +473,49 @@ const Integraciones = () => {
                 placeholder="Opcional"
               />
             </InputRow>
+            <InputRow>
+              <Key />
+              <InputLabel>Secreto de webhook</InputLabel>
+              <Input
+                type="password"
+                value={whatsappForm.webhookSecretInput}
+                onChange={(e) => handleWhatsappFormChange('webhookSecretInput', e.target.value)}
+                placeholder={whatsappConfig.webhook_secret_configurado ? whatsappConfig.webhook_secret_preview : 'Solo si usas el asistente con IA'}
+              />
+            </InputRow>
 
             <p style={{ fontSize: 12, color: '#9CA3AF', margin: '10px 0 0' }}>
               La API Key y el número se obtienen en tu cuenta de{' '}
               <a href="https://www.ycloud.com" target="_blank" rel="noopener noreferrer" style={{ color: '#6366F1' }}>ycloud.com</a>.
               Sin plantillas aprobadas, solo se puede enviar dentro de las 24h desde el último mensaje del paciente.
               Deja el campo de API Key en blanco para conservar la clave guardada.
+              El secreto de webhook solo es necesario si activas el{' '}
+              <a href="#asistente-ia" style={{ color: '#6366F1' }}>asistente de WhatsApp con IA</a> — lo genera
+              YCloud al configurar el endpoint de webhook, y sirve para verificar que los mensajes entrantes
+              realmente vengan de ellos.
             </p>
+
+            {whatsappConfig.webhook_secret_configurado && (
+              <div style={{ marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={handleClearWebhookSecret}
+                  disabled={savingWhatsapp}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #FCA5A5',
+                    background: 'white',
+                    color: '#DC2626',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: savingWhatsapp ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Quitar secreto de webhook
+                </button>
+              </div>
+            )}
 
             {whatsappSaveMessage && (
               <p style={{
@@ -442,15 +571,136 @@ const Integraciones = () => {
         </Section>
       )}
 
+      {asistenteIAConfig && (
+        <Section id="asistente-ia">
+          <SectionTitle>Asistente de WhatsApp con IA</SectionTitle>
+          <FormGroup>
+            <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 12px' }}>
+              Le da cerebro (GPT) al agente de WhatsApp que responde preguntas, agenda,
+              confirma, reagenda y cancela citas por su cuenta. Usa el mismo número y cuenta
+              de YCloud configurados arriba — solo necesita, además, tu clave de OpenAI.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0' }}>
+              <span style={{
+                display: 'inline-block',
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: asistenteIAConfig.configurado ? '#22C55E' : '#D1D5DB'
+              }} />
+              <span style={{ fontSize: 14, color: asistenteIAConfig.configurado ? '#16A34A' : '#6B7280' }}>
+                {asistenteIAConfig.configurado
+                  ? `Configurado (clave termina en ${asistenteIAConfig.api_key_preview?.slice(-4) || '****'})`
+                  : 'No configurado — el asistente con IA no puede responder hasta que agregues tu clave de OpenAI'}
+              </span>
+            </div>
+
+            <InputRow>
+              <Key />
+              <InputLabel>API Key de OpenAI</InputLabel>
+              <Input
+                type="password"
+                value={asistenteIAForm.apiKeyInput}
+                onChange={(e) => handleAsistenteIAFormChange('apiKeyInput', e.target.value)}
+                placeholder={asistenteIAConfig.configurado ? asistenteIAConfig.api_key_preview : 'sk-...'}
+              />
+            </InputRow>
+            <InputRow>
+              <Cpu />
+              <InputLabel>Modelo</InputLabel>
+              <Input
+                type="text"
+                value={asistenteIAForm.modelo}
+                onChange={(e) => handleAsistenteIAFormChange('modelo', e.target.value)}
+                placeholder="gpt-4.1"
+              />
+            </InputRow>
+
+            <p style={{ fontSize: 12, color: '#9CA3AF', margin: '10px 0 0' }}>
+              La API Key se obtiene en{' '}
+              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" style={{ color: '#6366F1' }}>platform.openai.com</a>.
+              Confirma el nombre del modelo vigente en tu cuenta de OpenAI antes de cambiarlo.
+              Deja el campo de API Key en blanco para conservar la clave guardada.
+            </p>
+
+            {asistenteIASaveMessage && (
+              <p style={{
+                fontSize: 13,
+                marginTop: 10,
+                color: asistenteIASaveMessage.success ? '#16A34A' : '#DC2626'
+              }}>
+                {asistenteIASaveMessage.text}
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+              <button
+                type="button"
+                onClick={handleSaveAsistenteIA}
+                disabled={savingAsistenteIA}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#6366F1',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: savingAsistenteIA ? 'not-allowed' : 'pointer',
+                  opacity: savingAsistenteIA ? 0.6 : 1
+                }}
+              >
+                {savingAsistenteIA ? 'Guardando...' : 'Guardar Configuración'}
+              </button>
+              {asistenteIAConfig.configurado && (
+                <button
+                  type="button"
+                  onClick={handleClearAsistenteIAKey}
+                  disabled={savingAsistenteIA}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: 10,
+                    border: '1px solid #FCA5A5',
+                    background: 'white',
+                    color: '#DC2626',
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: savingAsistenteIA ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Quitar clave
+                </button>
+              )}
+            </div>
+          </FormGroup>
+        </Section>
+      )}
+
       {googleAppConfig && (
         <Section>
           <SectionTitle>Google Calendar — Credenciales de la App</SectionTitle>
           <FormGroup>
             <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 12px' }}>
-              Estas credenciales identifican a Biodental ante Google y son <strong>globales a toda la
+              Estas credenciales identifican a Bio Dental ante Google y son <strong>globales a toda la
               instalación</strong> (no por consultorio): una sola vez configuradas aquí, cualquier
               doctor de cualquier consultorio puede vincular su propio Google Calendar desde su Perfil.
             </p>
+
+            <div style={{
+              display: 'flex', gap: 8, margin: '0 0 14px', padding: '10px 12px',
+              borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A'
+            }}>
+              <HelpCircle size={16} color="#B45309" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div style={{ fontSize: 12, color: '#92400E', lineHeight: 1.5 }}>
+                Mientras el proyecto de Google Cloud no esté "verificado", solo pueden conectar los
+                correos de Gmail que agregues como <strong>usuarios de prueba</strong> en la Pantalla de
+                consentimiento OAuth (Google Cloud Console → APIs y servicios). Sin eso, cada doctor va a
+                ver una pantalla de Google bloqueando el acceso, sin importar qué tan bien configures esto
+                aquí. Agrega el correo de cada doctor ahí antes de pedirles que conecten su calendario.
+              </div>
+            </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0' }}>
               <span style={{

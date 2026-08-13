@@ -82,6 +82,18 @@ const HelpText = styled.p`
   a:hover { text-decoration: underline; }
 `;
 
+const ForgotPasswordLink = styled(Link)`
+  display: block;
+  text-align: right;
+  font-size: 12.5px;
+  color: ${({ theme }) => theme.colors.primary};
+  font-weight: 600;
+  text-decoration: none;
+  margin-top: -8px;
+
+  &:hover { text-decoration: underline; }
+`;
+
 const PortalLogin = () => {
   const navigate = useNavigate();
   const { login, isAuthenticated, error: authError, clearError } = usePortalAuth();
@@ -125,7 +137,7 @@ const PortalLogin = () => {
         <LogoContainer>
           <LogoIcon><Heart /></LogoIcon>
           <AppName>Portal de pacientes</AppName>
-          <AppTagline>Biodental</AppTagline>
+          <AppTagline>Bio Dental</AppTagline>
         </LogoContainer>
 
         <Form onSubmit={handleSubmit}>
@@ -160,6 +172,7 @@ const PortalLogin = () => {
                 {showPassword ? <EyeOff /> : <Eye />}
               </PasswordToggle>
             </InputWrapper>
+            <ForgotPasswordLink to="/portal/olvide-password">¿Olvidaste tu contraseña?</ForgotPasswordLink>
           </div>
 
           <PortalButton type="submit" disabled={isLoading}>

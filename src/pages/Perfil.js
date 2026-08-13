@@ -29,10 +29,12 @@ import {
   Unlink,
   Puzzle,
   Gift,
-  PlusCircle
+  PlusCircle,
+  Palette
 } from 'lucide-react';
 import { useThemeMode } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { usuariosService, consultorioService, googleCalendarService } from '../services/api';
 import Modal from '../components/Modal';
 
@@ -418,10 +420,35 @@ const DescriptionLabel = styled.label`
   margin-bottom: 8px;
 `;
 
+// Traduce el `reason` que manda el backend (backend/controllers/googleCalendarController.js)
+// tras un intento fallido de conexión con Google Calendar a un mensaje que
+// un doctor sin conocimientos técnicos pueda entender y accionar.
+// Nota: si el correo del doctor no está autorizado como "usuario de prueba"
+// en Google Cloud Console (mientras la app no esté verificada por Google),
+// Google ni siquiera regresa aquí — se queda en su propia pantalla de aviso
+// ("This app hasn't completed the Google verification process"). Ese caso
+// no se puede interceptar ni traducir desde la app; por eso el panel de
+// ayuda junto al botón "Conectar" lo advierte de antemano.
+const traducirErrorGoogle = (reason) => {
+  switch (reason) {
+    case 'access_denied':
+      return 'Cancelaste el permiso en la pantalla de Google, así que no se conectó nada. Puedes intentarlo de nuevo cuando quieras.';
+    case 'state_invalido':
+      return 'El enlace de conexión ya expiró o no es válido. Dale clic a "Conectar con Google" de nuevo para generar uno nuevo.';
+    case 'sin_refresh_token':
+      return 'Google no devolvió los permisos necesarios para mantener la conexión activa. Ve a myaccount.google.com/permissions, quita el acceso de esta app si ya aparece, y vuelve a intentar conectar.';
+    default:
+      return reason
+        ? `No se pudo completar la conexión con Google (${reason}). Si el problema sigue, pide al administrador que revise las credenciales en Integraciones, o que agregue tu correo de Gmail como "usuario de prueba" en Google Cloud Console.`
+        : 'No se pudo conectar con Google Calendar. Intenta de nuevo o avisa al administrador.';
+  }
+};
+
 const Perfil = () => {
   const navigate = useNavigate();
   const { isDarkMode, toggleDarkMode } = useThemeMode();
   const { user, logout, updateUser } = useAuth();
+  const { showAlert } = useAlert();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const fileInputRef = React.useRef(null);
@@ -513,7 +540,7 @@ const Perfil = () => {
       });
     } else if (resultado === 'error') {
       const reason = params.get('reason');
-      setGoogleActionMessage({ success: false, text: reason ? `Error al conectar: ${reason}` : 'Error al conectar Google Calendar' });
+      setGoogleActionMessage({ success: false, text: traducirErrorGoogle(reason) });
     }
 
     // Limpiar los parámetros de la URL para que no se vuelva a procesar al recargar
@@ -597,13 +624,13 @@ const Perfil = () => {
     if (file) {
       // Validar tamaño (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('La imagen es muy grande. Máximo 5MB.');
+        showAlert('La imagen es muy grande. Máximo 5MB.', { tipo: 'warning' });
         return;
       }
-      
+
       // Validar tipo
       if (!file.type.startsWith('image/')) {
-        alert('Por favor selecciona una imagen válida.');
+        showAlert('Por favor selecciona una imagen válida.', { tipo: 'warning' });
         return;
       }
 
@@ -699,7 +726,7 @@ const Perfil = () => {
       setShowSaveModal(true);
     } catch (error) {
       console.error('Error saving:', error);
-      alert('Error al guardar los cambios');
+      showAlert('Error al guardar los cambios', { tipo: 'error' });
     } finally {
       setSaving(false);
     }
@@ -984,10 +1011,33 @@ const Perfil = () => {
                 )}
 
                 <p style={{ fontSize: 12, color: '#9CA3AF', margin: '10px 0 0' }}>
-                  Tus citas de Biodental se crean como eventos en tu calendario de Google, y los eventos
+                  Tus citas de Bio Dental se crean como eventos en tu calendario de Google, y los eventos
                   que agregues directamente en Google Calendar bloquean ese horario para nuevas citas
                   aquí. La sincronización ocurre automáticamente cada pocos minutos.
                 </p>
+
+                {!googleCalendarStatus.conectado && (
+                  <div style={{
+                    display: 'flex',
+                    gap: 8,
+                    marginTop: 12,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: '#EEF2FF',
+                    border: '1px solid #E0E7FF'
+                  }}>
+                    <HelpCircle size={16} color="#6366F1" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <div style={{ fontSize: 12, color: '#4338CA', lineHeight: 1.5 }}>
+                      Al darle clic te va a llevar a una pantalla de Google donde inicias sesión con la
+                      cuenta de Gmail de tu calendario y le das "Permitir". Regresas automáticamente aquí.
+                      <br />
+                      <strong>¿Ves un aviso de Google diciendo que la app "no está verificada"?</strong> Es
+                      normal mientras el consultorio esté probando la integración — pide al administrador
+                      que agregue tu correo de Gmail como "usuario de prueba" en la configuración de Google
+                      de la clínica, y vuelve a intentar.
+                    </div>
+                  </div>
+                )}
 
                 {googleActionMessage && (
                   <p style={{
@@ -1082,15 +1132,17 @@ const Perfil = () => {
 
       <Section>
         <SectionTitle>Administración</SectionTitle>
-        <SettingItem onClick={() => handleNavigation('/integraciones')}>
-          <SettingLeft>
-            <Puzzle />
-            <SettingText>Integraciones (WhatsApp, Google Calendar)</SettingText>
-          </SettingLeft>
-          <SettingRight>
-            <ChevronRight />
-          </SettingRight>
-        </SettingItem>
+        {isAdmin && (
+          <SettingItem onClick={() => handleNavigation('/integraciones')}>
+            <SettingLeft>
+              <Puzzle />
+              <SettingText>Integraciones (WhatsApp, Google Calendar)</SettingText>
+            </SettingLeft>
+            <SettingRight>
+              <ChevronRight />
+            </SettingRight>
+          </SettingItem>
+        )}
         <SettingItem onClick={() => handleNavigation('/promociones')}>
           <SettingLeft>
             <Gift />
@@ -1109,24 +1161,28 @@ const Perfil = () => {
             <ChevronRight />
           </SettingRight>
         </SettingItem>
-        <SettingItem onClick={() => handleNavigation('/gestion-personal')}>
-          <SettingLeft>
-            <Users />
-            <SettingText>Gestión de Personal</SettingText>
-          </SettingLeft>
-          <SettingRight>
-            <ChevronRight />
-          </SettingRight>
-        </SettingItem>
-        <SettingItem onClick={() => handleNavigation('/gestion-formularios')}>
-          <SettingLeft>
-            <FileText />
-            <SettingText>Formularios de Pacientes</SettingText>
-          </SettingLeft>
-          <SettingRight>
-            <ChevronRight />
-          </SettingRight>
-        </SettingItem>
+        {isAdmin && (
+          <SettingItem onClick={() => handleNavigation('/gestion-personal')}>
+            <SettingLeft>
+              <Users />
+              <SettingText>Gestión de Personal</SettingText>
+            </SettingLeft>
+            <SettingRight>
+              <ChevronRight />
+            </SettingRight>
+          </SettingItem>
+        )}
+        {(isAdmin || user?.rol === 'doctor') && (
+          <SettingItem onClick={() => handleNavigation('/gestion-formularios')}>
+            <SettingLeft>
+              <FileText />
+              <SettingText>Formularios de Pacientes</SettingText>
+            </SettingLeft>
+            <SettingRight>
+              <ChevronRight />
+            </SettingRight>
+          </SettingItem>
+        )}
         <SettingItem onClick={() => handleNavigation('/inventario')}>
           <SettingLeft>
             <Package />
@@ -1136,15 +1192,17 @@ const Perfil = () => {
             <ChevronRight />
           </SettingRight>
         </SettingItem>
-        <SettingItem onClick={() => handleNavigation('/recetas')}>
-          <SettingLeft>
-            <Pill />
-            <SettingText>Recetas Médicas</SettingText>
-          </SettingLeft>
-          <SettingRight>
-            <ChevronRight />
-          </SettingRight>
-        </SettingItem>
+        {(isAdmin || user?.rol === 'doctor') && (
+          <SettingItem onClick={() => handleNavigation('/recetas')}>
+            <SettingLeft>
+              <Pill />
+              <SettingText>Recetas Médicas</SettingText>
+            </SettingLeft>
+            <SettingRight>
+              <ChevronRight />
+            </SettingRight>
+          </SettingItem>
+        )}
         <SettingItem onClick={() => handleNavigation('/presupuestos')}>
           <SettingLeft>
             <FileSpreadsheet />
@@ -1178,6 +1236,17 @@ const Perfil = () => {
 
       <Section>
         <SectionTitle>Configuración</SectionTitle>
+        {isAdmin && (
+          <SettingItem onClick={() => handleNavigation('/apariencia')}>
+            <SettingLeft>
+              <Palette />
+              <SettingText>Apariencia (colores e ícono de la app)</SettingText>
+            </SettingLeft>
+            <SettingRight>
+              <ChevronRight />
+            </SettingRight>
+          </SettingItem>
+        )}
         <SettingItem onClick={() => toggleSetting('notifications')}>
           <SettingLeft>
             <Bell />
@@ -1235,7 +1304,7 @@ const Perfil = () => {
         Cerrar Sesión
       </LogoutButton>
 
-      <VersionText>Biodental v1.0.0</VersionText>
+      <VersionText>Bio Dental v1.0.0</VersionText>
     </PageContainer>
   );
 };

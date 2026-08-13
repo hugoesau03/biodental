@@ -26,6 +26,11 @@ const createRateLimiter = ({ windowMs = 15 * 60 * 1000, max = 10, message } = {}
   if (cleanup.unref) cleanup.unref();
 
   return (req, res, next) => {
+    // En tests todas las peticiones caen sobre la misma IP dentro de la
+    // misma ventana — desactivar el conteo evita que un test tumbe al
+    // siguiente con un 429 que no tiene nada que ver con lo que se prueba.
+    if (process.env.NODE_ENV === 'test') return next();
+
     const ip = req.ip || req.connection?.remoteAddress || 'unknown';
     const now = Date.now();
     const entry = hits.get(ip);
@@ -57,4 +62,18 @@ const loginLimiter = createRateLimiter({
   message: 'Demasiados intentos de inicio de sesión. Espera unos minutos e intenta de nuevo.'
 });
 
-module.exports = { createRateLimiter, loginLimiter };
+// Limiter general para toda la API (antes solo existía en las rutas de
+// auth — el resto de los endpoints, pacientes/citas/recibos/etc., no
+// tenían ningún límite). Bastante más laxo que loginLimiter: la idea es
+// frenar abuso/scraping/bugs de cliente en bucle, no estorbar el uso
+// normal — incluyendo un consultorio con varios miembros de staff detrás
+// de la misma IP de oficina, más el polling de chat/notificaciones.
+// Configurable por variables de entorno por si el default no calza con el
+// tráfico real de un consultorio en particular.
+const apiLimiter = createRateLimiter({
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 5 * 60 * 1000, // 5 minutos
+  max: Number(process.env.RATE_LIMIT_MAX) || 1500, // ~300 peticiones/min de margen
+  message: 'Demasiadas peticiones desde esta IP. Intenta de nuevo en unos minutos.'
+});
+
+module.exports = { createRateLimiter, loginLimiter, apiLimiter };

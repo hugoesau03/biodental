@@ -30,7 +30,8 @@ const authPaciente = async (req, res, next) => {
     }
 
     const [pacientes] = await pool.query(
-      `SELECT p.id, p.uuid, p.consultorio_id, p.nombre, p.apellidos, p.email, p.telefono, p.activo
+      `SELECT p.id, p.uuid, p.consultorio_id, p.nombre, p.apellidos, p.email, p.telefono, p.activo,
+              p.tokens_invalidos_antes
        FROM pacientes p
        JOIN consultorios c ON p.consultorio_id = c.id
        WHERE p.id = ? AND p.activo = TRUE AND c.activo = TRUE`,
@@ -41,6 +42,17 @@ const authPaciente = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Paciente no encontrado o inactivo'
+      });
+    }
+
+    // Revocación: mismo mecanismo que el auth de staff (ver middleware/auth.js).
+    if (
+      pacientes[0].tokens_invalidos_antes &&
+      decoded.iat * 1000 < new Date(pacientes[0].tokens_invalidos_antes).getTime()
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: 'Sesión cerrada. Vuelve a iniciar sesión.'
       });
     }
 

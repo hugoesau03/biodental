@@ -14,7 +14,7 @@ const getCitas = asyncHandler(async (req, res) => {
 
   let query = `
     SELECT c.uuid, c.fecha, c.hora_inicio, c.hora_fin, c.estado, c.tipo,
-           c.motivo, c.notas, c.precio_total, c.pagado,
+           c.motivo, c.notas, c.precio_total, c.pagado, c.checkin_at,
            p.uuid as paciente_uuid, p.nombre as paciente_nombre, 
            p.apellidos as paciente_apellidos, p.telefono as paciente_telefono,
            u.uuid as doctor_uuid, u.nombre as doctor_nombre, 
@@ -915,6 +915,44 @@ async function eliminarBloqueosDeCita(citaId, citaOriginal) {
   }
 }
 
+/**
+ * Registrar o deshacer el check-in de una cita desde el lado del personal
+ * (recepción). Es el mismo campo `checkin_at` que el paciente puede marcar
+ * desde su portal (POST /api/portal/citas/:uuid/checkin) — sirve para
+ * cuando el paciente llega sin haber usado el portal, o para corregir un
+ * check-in hecho por error. A diferencia del check-in del paciente (que
+ * solo permite marcar, no desmarcar, y solo el día de la cita), aquí el
+ * personal puede alternar el estado libremente.
+ * PUT /api/citas/:uuid/checkin
+ */
+const toggleCheckin = asyncHandler(async (req, res) => {
+  const { uuid } = req.params;
+
+  const [citas] = await pool.query(
+    'SELECT id, checkin_at FROM citas WHERE uuid = ? AND consultorio_id = ?',
+    [uuid, req.consultorioId]
+  );
+
+  if (citas.length === 0) {
+    return res.status(404).json({ success: false, message: 'Cita no encontrada' });
+  }
+
+  const yaTieneCheckin = !!citas[0].checkin_at;
+
+  await pool.query(
+    `UPDATE citas SET checkin_at = ${yaTieneCheckin ? 'NULL' : 'NOW()'} WHERE id = ?`,
+    [citas[0].id]
+  );
+
+  const [actualizada] = await pool.query('SELECT checkin_at FROM citas WHERE id = ?', [citas[0].id]);
+
+  res.json({
+    success: true,
+    message: yaTieneCheckin ? 'Check-in deshecho' : 'Check-in registrado',
+    data: { checkin_at: actualizada[0].checkin_at }
+  });
+});
+
 module.exports = {
   getCitas,
   getCita,
@@ -922,5 +960,8 @@ module.exports = {
   updateCita,
   deleteCita,
   validarDisponibilidadDoctor,
-  eliminarBloqueosDeCita
+  eliminarBloqueosDeCita,
+  toggleCheckin,
+  formatFechaLocal,
+  calcularHoraFin
 };

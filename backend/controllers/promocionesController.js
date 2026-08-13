@@ -13,7 +13,7 @@ const { asyncHandler } = require('../middleware');
  */
 const getPromociones = asyncHandler(async (req, res) => {
   const [promociones] = await pool.query(
-    `SELECT uuid, titulo, mensaje, icono, color, activa, fecha_inicio, fecha_fin, fecha_creacion
+    `SELECT uuid, titulo, mensaje, icono, color, imagen_blob, activa, fecha_inicio, fecha_fin, fecha_creacion
      FROM promociones
      WHERE consultorio_id = ?
      ORDER BY fecha_creacion DESC`,
@@ -27,7 +27,7 @@ const getPromociones = asyncHandler(async (req, res) => {
  * POST /api/promociones
  */
 const createPromocion = asyncHandler(async (req, res) => {
-  const { titulo, mensaje, icono, color, fecha_inicio, fecha_fin, activa } = req.body;
+  const { titulo, mensaje, icono, color, imagen_blob, fecha_inicio, fecha_fin, activa } = req.body;
 
   if (!titulo || !mensaje) {
     return res.status(400).json({
@@ -38,11 +38,11 @@ const createPromocion = asyncHandler(async (req, res) => {
 
   const uuid = uuidv4();
   await pool.query(
-    `INSERT INTO promociones (consultorio_id, uuid, titulo, mensaje, icono, color, activa, fecha_inicio, fecha_fin, creado_por)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO promociones (consultorio_id, uuid, titulo, mensaje, icono, color, imagen_blob, activa, fecha_inicio, fecha_fin, creado_por)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       req.consultorioId, uuid, titulo, mensaje,
-      icono || 'gift', color || 'primary',
+      icono || 'gift', color || 'primary', imagen_blob || null,
       activa === undefined ? true : !!activa,
       fecha_inicio || null, fecha_fin || null,
       req.userId || null
@@ -61,7 +61,7 @@ const createPromocion = asyncHandler(async (req, res) => {
  */
 const updatePromocion = asyncHandler(async (req, res) => {
   const { uuid } = req.params;
-  const { titulo, mensaje, icono, color, fecha_inicio, fecha_fin, activa } = req.body;
+  const { titulo, mensaje, icono, color, imagen_blob, fecha_inicio, fecha_fin, activa } = req.body;
 
   const updates = [];
   const params = [];
@@ -70,6 +70,7 @@ const updatePromocion = asyncHandler(async (req, res) => {
   if (mensaje !== undefined) { updates.push('mensaje = ?'); params.push(mensaje); }
   if (icono !== undefined) { updates.push('icono = ?'); params.push(icono); }
   if (color !== undefined) { updates.push('color = ?'); params.push(color); }
+  if (imagen_blob !== undefined) { updates.push('imagen_blob = ?'); params.push(imagen_blob); }
   if (fecha_inicio !== undefined) { updates.push('fecha_inicio = ?'); params.push(fecha_inicio || null); }
   if (fecha_fin !== undefined) { updates.push('fecha_fin = ?'); params.push(fecha_fin || null); }
   if (activa !== undefined) { updates.push('activa = ?'); params.push(!!activa); }

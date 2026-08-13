@@ -8,7 +8,7 @@ const { crearNotificacionInterna } = require('./notificacionesController');
  * GET /api/pacientes
  */
 const getPacientes = asyncHandler(async (req, res) => {
-  const { search, tipo, activo, page = 1, limit = 500 } = req.query;
+  const { search, tipo, activo, telefono, page = 1, limit = 500 } = req.query;
   const offset = (page - 1) * limit;
 
   let baseWhere = `WHERE p.consultorio_id = ?`;
@@ -21,6 +21,19 @@ const getPacientes = asyncHandler(async (req, res) => {
     const searchTerm = `%${search}%`;
     params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     countParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+  }
+
+  // Búsqueda por teléfono (usada por el agente de WhatsApp para ubicar al
+  // paciente por el número del que escribe). Compara solo los últimos 10
+  // dígitos para que coincida sin importar si el número guardado incluye
+  // lada de país, espacios o guiones — nunca se normalizó al capturarlo.
+  if (telefono) {
+    const digitos = String(telefono).replace(/\D/g, '').slice(-10);
+    if (digitos) {
+      baseWhere += ` AND RIGHT(REGEXP_REPLACE(p.telefono, '[^0-9]', ''), 10) = ?`;
+      params.push(digitos);
+      countParams.push(digitos);
+    }
   }
 
   if (tipo) {
@@ -124,6 +137,27 @@ const createPaciente = asyncHandler(async (req, res) => {
     return res.status(400).json({
       success: false,
       message: 'El nombre es requerido'
+    });
+  }
+
+  if (!fecha_nacimiento) {
+    return res.status(400).json({
+      success: false,
+      message: 'La fecha de nacimiento es requerida'
+    });
+  }
+
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: 'El correo es requerido'
+    });
+  }
+
+  if (!telefono) {
+    return res.status(400).json({
+      success: false,
+      message: 'El teléfono es requerido'
     });
   }
 

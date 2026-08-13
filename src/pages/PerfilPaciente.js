@@ -4,6 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Calendar, FileText, Link as LinkIcon, Eye, Upload, Image, File, Trash2, X, ChevronRight, ChevronLeft, Plus, Check, Loader, Edit2, User, Download, FolderDown, UserX, UserCheck } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
+import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { pacientesService, citasService, documentosService, formulariosService } from '../services/api';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -1086,7 +1088,10 @@ const EmptyExpediente = styled.div`
 const PerfilPaciente = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+  const { user } = useAuth();
+  const { showAlert } = useAlert();
+  const isAdmin = user?.rol === 'admin';
+
   const [patient, setPatient] = useState(null);
   const [citas, setCitas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1246,7 +1251,7 @@ const PerfilPaciente = () => {
         // Verificar tamaño máximo (10MB)
         const maxSize = 10 * 1024 * 1024;
         if (file.size > maxSize) {
-          alert(`El archivo ${file.name} es demasiado grande. Máximo 10MB.`);
+          showAlert(`El archivo ${file.name} es demasiado grande. Máximo 10MB.`, { tipo: 'warning' });
           continue;
         }
 
@@ -1290,7 +1295,7 @@ const PerfilPaciente = () => {
         }
       } catch (err) {
         console.error('Error subiendo documento:', err);
-        alert('Error al subir el documento: ' + file.name);
+        showAlert('Error al subir el documento: ' + file.name, { tipo: 'error' });
       }
     }
   };
@@ -1317,7 +1322,7 @@ const PerfilPaciente = () => {
       }
     } catch (err) {
       console.error('Error eliminando documento:', err);
-      alert('Error al eliminar el documento');
+      showAlert('Error al eliminar el documento', { tipo: 'error' });
     }
     setShowDeleteModal(false);
     setDocumentToDelete(null);
@@ -1338,7 +1343,7 @@ const PerfilPaciente = () => {
       }
     } catch (err) {
       console.error('Error eliminando formulario:', err);
-      alert('Error al eliminar el formulario');
+      showAlert('Error al eliminar el formulario', { tipo: 'error' });
     }
     setShowDeleteFormModal(false);
     setFormToDelete(null);
@@ -1417,11 +1422,11 @@ const PerfilPaciente = () => {
         setPatient({ ...patient, activo: !patient.activo });
         setShowToggleActiveModal(false);
       } else {
-        alert(response.message || 'Error al actualizar el estado del paciente');
+        showAlert(response.message || 'Error al actualizar el estado del paciente', { tipo: 'error' });
       }
     } catch (error) {
       console.error('Error actualizando estado del paciente:', error);
-      alert('Error al actualizar el estado del paciente');
+      showAlert('Error al actualizar el estado del paciente', { tipo: 'error' });
     } finally {
       setTogglingActive(false);
     }
@@ -1436,11 +1441,11 @@ const PerfilPaciente = () => {
         setShowDeletePatientModal(false);
         navigate('/pacientes', { state: { message: 'Paciente eliminado correctamente' } });
       } else {
-        alert(response.message || 'Error al eliminar el paciente');
+        showAlert(response.message || 'Error al eliminar el paciente', { tipo: 'error' });
       }
     } catch (error) {
       console.error('Error eliminando paciente:', error);
-      alert('Error al eliminar el paciente');
+      showAlert('Error al eliminar el paciente', { tipo: 'error' });
     } finally {
       setDeletingPatient(false);
     }
@@ -1612,7 +1617,7 @@ const PerfilPaciente = () => {
           </div>
           
           <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB; text-align: center; color: #999; font-size: 11px;">
-            Documento generado el ${new Date().toLocaleDateString('es-MX')} | Biodental - Sistema de Gestión Médica
+            Documento generado el ${new Date().toLocaleDateString('es-MX')} | Bio Dental - Sistema de Gestión Médica
           </div>
         `;
 
@@ -1836,7 +1841,7 @@ const PerfilPaciente = () => {
       setShowSuccessModal(true);
     } catch (error) {
       console.error('Error generando PDF:', error);
-      alert('Error al generar el PDF: ' + error.message);
+      showAlert('Error al generar el PDF: ' + error.message, { tipo: 'error' });
     } finally {
       setGeneratingPDF(false);
     }
@@ -2147,10 +2152,12 @@ const PerfilPaciente = () => {
               {patient?.activo ? <UserX /> : <UserCheck />}
               {patient?.activo ? 'Desactivar' : 'Activar'}
             </ToggleActiveButton>
-            <DeletePatientButton onClick={() => setShowDeletePatientModal(true)}>
-              <Trash2 />
-              Eliminar
-            </DeletePatientButton>
+            {isAdmin && (
+              <DeletePatientButton onClick={() => setShowDeletePatientModal(true)}>
+                <Trash2 />
+                Eliminar
+              </DeletePatientButton>
+            )}
           </ButtonsRow>
         </ProfileHeader>
 

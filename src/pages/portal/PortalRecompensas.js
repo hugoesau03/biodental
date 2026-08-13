@@ -90,7 +90,7 @@ const PortalRecompensas = () => {
 
       <PortalButton onClick={() => navigate('/portal/canjear')} style={{ marginBottom: 20 }}>
         <ShoppingBag size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-        Canjear puntos por productos
+        Canjear puntos por productos/servicios
       </PortalButton>
 
       <PortalSectionTitle>Historial de puntos</PortalSectionTitle>

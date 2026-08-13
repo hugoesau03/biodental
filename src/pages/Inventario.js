@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
+import { useAuth } from '../context/AuthContext';
 import { inventarioService } from '../services/api';
 
 const PageContainer = styled.div`
@@ -437,6 +438,8 @@ const EmptyState = styled.div`
 `;
 
 const Inventario = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.rol === 'admin';
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -662,9 +665,11 @@ const Inventario = () => {
                   <ActionButton onClick={() => handleOpenModal(product)}>
                     <Edit2 />
                   </ActionButton>
-                  <ActionButton $danger onClick={() => handleDelete(product)}>
-                    <Trash2 />
-                  </ActionButton>
+                  {isAdmin && (
+                    <ActionButton $danger onClick={() => handleDelete(product)}>
+                      <Trash2 />
+                    </ActionButton>
+                  )}
                 </ProductActions>
               </ProductCard>
             ))

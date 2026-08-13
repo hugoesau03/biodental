@@ -5,6 +5,9 @@ const {
   updateConsultorio,
   getWhatsappConfig,
   updateWhatsappConfig,
+  getAsistenteIAConfig,
+  updateAsistenteIAConfig,
+  getCredencialesAsistente,
   getEstadisticas,
   getReporteIngresos
 } = require('../controllers/consultorioController');
@@ -16,6 +19,12 @@ router.get('/', getConsultorio);
 router.put('/', requireRole('admin'), updateConsultorio);
 router.get('/whatsapp', requireRole('admin'), getWhatsappConfig);
 router.put('/whatsapp', requireRole('admin'), updateWhatsappConfig);
+router.get('/asistente-whatsapp', requireRole('admin'), getAsistenteIAConfig);
+router.put('/asistente-whatsapp', requireRole('admin'), updateAsistenteIAConfig);
+// Sin requireRole('admin') a propósito: la consume el agente de WhatsApp
+// (whatsapp-agentkit) con su cuenta de servicio de rol recepcionista, ver
+// el comentario de getCredencialesAsistente en el controlador.
+router.get('/asistente-whatsapp/credenciales', getCredencialesAsistente);
 router.get('/estadisticas', getEstadisticas);
 router.get('/reporte-ingresos', getReporteIngresos);
 

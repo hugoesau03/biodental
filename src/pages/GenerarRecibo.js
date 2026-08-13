@@ -27,6 +27,7 @@ import {
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
 import { citasService, inventarioService, recibosService, pagosService, consultorioService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -854,7 +855,8 @@ const QuantityInput = styled.input`
 const GenerarRecibo = () => {
   const { citaId } = useParams();
   const navigate = useNavigate();
-  
+  const { showAlert } = useAlert();
+
   const [appointment, setAppointment] = useState(null);
   const [inventoryProducts, setInventoryProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1113,7 +1115,7 @@ const GenerarRecibo = () => {
     if (selectedProduct) {
       // Verificar si hay stock suficiente
       if (selectedProduct.stock < productQuantity) {
-        alert(`Stock insuficiente. Disponible: ${selectedProduct.stock}`);
+        showAlert(`Stock insuficiente. Disponible: ${selectedProduct.stock}`, { tipo: 'warning' });
         return;
       }
       
@@ -1200,11 +1202,11 @@ const GenerarRecibo = () => {
         setReciboUuid(response.data.uuid);
         setShowSuccessModal(true);
       } else {
-        alert(response.message || 'Error al generar recibo');
+        showAlert(response.message || 'Error al generar recibo', { tipo: 'error' });
       }
     } catch (err) {
       console.error('Error generando recibo:', err);
-      alert('Error al generar el recibo');
+      showAlert('Error al generar el recibo', { tipo: 'error' });
     } finally {
       setSaving(false);
     }
@@ -1404,15 +1406,15 @@ const GenerarRecibo = () => {
           currentReciboUuid = response.data.uuid;
           setReciboUuid(currentReciboUuid);
         } else {
-          alert(response.message || 'Error al crear el recibo');
+          showAlert(response.message || 'Error al crear el recibo', { tipo: 'error' });
           setSaving(false);
           return;
         }
       }
-      
+
       // Actualizar el estado de la cita a pendiente_pago
       const updateResponse = await citasService.update(citaId, { estado: 'pendiente_pago' });
-      
+
       if (updateResponse.success) {
         setPaymentResult({
           show: true,
@@ -1420,11 +1422,11 @@ const GenerarRecibo = () => {
           message: 'El recibo ha sido guardado y la cita marcada como pendiente de pago.'
         });
       } else {
-        alert(updateResponse.message || 'Error al actualizar la cita');
+        showAlert(updateResponse.message || 'Error al actualizar la cita', { tipo: 'error' });
       }
     } catch (err) {
       console.error('Error al guardar para pagar después:', err);
-      alert('Error al procesar la solicitud');
+      showAlert('Error al procesar la solicitud', { tipo: 'error' });
     } finally {
       setSaving(false);
     }

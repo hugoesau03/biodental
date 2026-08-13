@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, KeyRound, Lock, User, CheckCircle2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { KeyRound, User, Mail } from 'lucide-react';
 import { authService } from '../services/api';
 
 const PageContainer = styled.div`
@@ -62,22 +62,11 @@ const Subtitle = styled.p`
   text-align: center;
 `;
 
-const Notice = styled.div`
-  background: ${({ theme }) => theme.colors.backgroundSecondary || theme.colors.background};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textSecondary};
-  margin: 20px 0 4px 0;
-  text-align: center;
-`;
-
 const Form = styled.form`
   display: flex;
   flex-direction: column;
   gap: 20px;
-  margin-top: 20px;
+  margin-top: 24px;
 `;
 
 const InputGroup = styled.div`
@@ -129,28 +118,6 @@ const Input = styled.input`
 
   &::placeholder {
     color: ${({ theme }) => theme.colors.textSecondary};
-  }
-`;
-
-const PasswordToggle = styled.button`
-  position: absolute;
-  right: 16px;
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  svg {
-    width: 20px;
-    height: 20px;
-    color: ${({ theme }) => theme.colors.textSecondary};
-  }
-
-  &:hover svg {
-    color: ${({ theme }) => theme.colors.primary};
   }
 `;
 
@@ -227,43 +194,27 @@ const SuccessBox = styled.div`
 `;
 
 const OlvidePassword = () => {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [enviado, setEnviado] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!email || !newPassword || !confirmPassword) {
-      setError('Por favor, completa todos los campos');
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setError('La nueva contraseña debe tener al menos 8 caracteres');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
+    if (!email) {
+      setError('Ingresa tu correo electrónico');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const result = await authService.resetPassword(email, newPassword);
-      if (result.success) {
-        setSuccess(true);
-      } else {
-        setError(result.message || 'No se pudo restablecer la contraseña');
-      }
+      // El backend siempre responde igual (mensaje genérico), exista o no
+      // la cuenta, para no revelar qué correos están registrados.
+      await authService.solicitarResetPassword(email);
+      setEnviado(true);
     } catch (err) {
       setError(err.response?.data?.message || 'Error al conectar con el servidor');
     } finally {
@@ -279,85 +230,45 @@ const OlvidePassword = () => {
             <KeyRound />
           </LogoIcon>
           <Title>Restablecer contraseña</Title>
-          <Subtitle>Ingresa tu correo y define una nueva contraseña</Subtitle>
+          <Subtitle>Te enviaremos un enlace a tu correo para definir una nueva contraseña</Subtitle>
         </LogoContainer>
 
-        {success ? (
+        {enviado ? (
           <SuccessBox>
-            <CheckCircle2 />
-            <p>Tu contraseña se actualizó correctamente. Ya puedes iniciar sesión con ella.</p>
-            <SubmitButton type="button" onClick={() => navigate('/login')} style={{ marginTop: 8 }}>
-              Ir a iniciar sesión
-            </SubmitButton>
+            <Mail />
+            <p>
+              Si existe una cuenta activa con <strong>{email}</strong>, te enviamos un correo con un enlace
+              para restablecer tu contraseña. El enlace es válido durante 1 hora.
+            </p>
+            <BackLink to="/login" style={{ marginTop: 8 }}>Volver a iniciar sesión</BackLink>
           </SuccessBox>
         ) : (
-          <>
-            <Notice>
-              Esta pantalla es una solución provisional: no envía correo de verificación,
-              solo confirma que la cuenta con ese email existe.
-            </Notice>
+          <Form onSubmit={handleSubmit}>
+            {error && <ErrorMessage>{error}</ErrorMessage>}
 
-            <Form onSubmit={handleSubmit}>
-              {error && <ErrorMessage>{error}</ErrorMessage>}
+            <InputGroup>
+              <InputLabel>Correo electrónico</InputLabel>
+              <InputWrapper>
+                <InputIcon>
+                  <User />
+                </InputIcon>
+                <Input
+                  type="email"
+                  placeholder="Ingresa tu correo"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  autoFocus
+                />
+              </InputWrapper>
+            </InputGroup>
 
-              <InputGroup>
-                <InputLabel>Correo electrónico</InputLabel>
-                <InputWrapper>
-                  <InputIcon>
-                    <User />
-                  </InputIcon>
-                  <Input
-                    type="email"
-                    placeholder="Ingresa tu correo"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                  />
-                </InputWrapper>
-              </InputGroup>
+            <SubmitButton type="submit" disabled={isLoading}>
+              {isLoading ? 'Enviando...' : 'Enviar enlace de recuperación'}
+            </SubmitButton>
 
-              <InputGroup>
-                <InputLabel>Nueva contraseña</InputLabel>
-                <InputWrapper>
-                  <InputIcon>
-                    <Lock />
-                  </InputIcon>
-                  <Input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Mínimo 8 caracteres"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    autoComplete="new-password"
-                  />
-                  <PasswordToggle type="button" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <EyeOff /> : <Eye />}
-                  </PasswordToggle>
-                </InputWrapper>
-              </InputGroup>
-
-              <InputGroup>
-                <InputLabel>Confirmar nueva contraseña</InputLabel>
-                <InputWrapper>
-                  <InputIcon>
-                    <Lock />
-                  </InputIcon>
-                  <Input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Repite la contraseña"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    autoComplete="new-password"
-                  />
-                </InputWrapper>
-              </InputGroup>
-
-              <SubmitButton type="submit" disabled={isLoading}>
-                {isLoading ? 'Guardando...' : 'Restablecer contraseña'}
-              </SubmitButton>
-
-              <BackLink to="/login">Volver a iniciar sesión</BackLink>
-            </Form>
-          </>
+            <BackLink to="/login">Volver a iniciar sesión</BackLink>
+          </Form>
         )}
       </Card>
     </PageContainer>

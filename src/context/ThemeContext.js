@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { lightTheme, darkTheme } from '../styles/theme';
 
 const ThemeContext = createContext();
+
+const APARIENCIA_KEY = 'biodental-apariencia';
 
 export const useThemeMode = () => {
   const context = useContext(ThemeContext);
@@ -22,6 +24,19 @@ export const ThemeModeProvider = ({ children }) => {
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
+  // Personalización de marca del consultorio (Apariencia): colores de
+  // fondo/principal/fuente y el ícono/logo de la app. Se cachea en
+  // localStorage para aplicarse de inmediato al recargar, sin esperar a
+  // que AppLayout la vuelva a traer del backend tras iniciar sesión.
+  const [apariencia, setAparienciaState] = useState(() => {
+    try {
+      const saved = localStorage.getItem(APARIENCIA_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
   // Guardar preferencia cuando cambie
   useEffect(() => {
     localStorage.setItem('biodental-dark-mode', JSON.stringify(isDarkMode));
@@ -31,12 +46,39 @@ export const ThemeModeProvider = ({ children }) => {
     setIsDarkMode(prev => !prev);
   };
 
-  const theme = isDarkMode ? darkTheme : lightTheme;
+  const setApariencia = (data) => {
+    const nueva = data || {};
+    setAparienciaState(nueva);
+    localStorage.setItem(APARIENCIA_KEY, JSON.stringify(nueva));
+  };
+
+  const baseTheme = isDarkMode ? darkTheme : lightTheme;
+
+  // Los overrides solo tocan las 3 llaves que Apariencia permite
+  // personalizar; todo lo demás (sombras, spacing, tipografía, etc.)
+  // se conserva del tema base claro/oscuro.
+  const theme = useMemo(() => {
+    if (!apariencia.color_fondo && !apariencia.color_principal && !apariencia.color_texto) {
+      return baseTheme;
+    }
+    return {
+      ...baseTheme,
+      colors: {
+        ...baseTheme.colors,
+        ...(apariencia.color_principal ? { primary: apariencia.color_principal } : {}),
+        ...(apariencia.color_fondo ? { background: apariencia.color_fondo } : {}),
+        ...(apariencia.color_texto ? { text: apariencia.color_texto } : {})
+      }
+    };
+  }, [baseTheme, apariencia]);
 
   const value = {
     isDarkMode,
     toggleDarkMode,
-    theme
+    theme,
+    apariencia,
+    setApariencia,
+    logoBlob: apariencia.logo_blob || null
   };
 
   return (

@@ -88,7 +88,15 @@ export const PortalAuthProvider = ({ children }) => {
     }
   }, [guardarSesion]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Avisar al backend antes de borrar el token localmente — ver el
+    // mismo comentario en AuthContext.logout.
+    try {
+      await portalService.logout();
+    } catch (err) {
+      // Silencioso a propósito — el logout local sigue de todas formas
+    }
+
     localStorage.removeItem('biodental_portal_token');
     sessionStorage.removeItem('biodental_portal_token');
     setPaciente(null);

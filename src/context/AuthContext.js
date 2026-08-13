@@ -78,7 +78,18 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Avisar al backend antes de borrar el token localmente — invalida la
+    // sesión del lado del servidor (y de paso, cualquier otra sesión
+    // abierta). Si falla (red caída, token ya vencido) no bloquea el
+    // logout local: el usuario igual se va, solo que el token viejo no
+    // quedó revocado del lado del servidor hasta que expire solo.
+    try {
+      await authService.logout();
+    } catch (err) {
+      // Silencioso a propósito — el logout local sigue de todas formas
+    }
+
     localStorage.removeItem('biodental_token');
     sessionStorage.removeItem('biodental_token');
     localStorage.removeItem('biodental_user');

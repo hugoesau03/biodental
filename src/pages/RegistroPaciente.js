@@ -1,9 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
-import { User, Heart, Pill, Camera, Trash2, Info, CheckCircle, Activity, FileText } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { User, Heart, Pill, Camera, Trash2, Info, CheckCircle, Activity, FileText, ClipboardList, X } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import { pacientesService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
+
+// Borrador temporal para no perder lo ya escrito al ir a "Seleccionar
+// formularios" (SeleccionarFormularioNuevo.js) y volver — esa pantalla solo
+// devuelve `selectedForms` por location.state, así que el resto de los
+// datos del formulario se guardan aquí mientras tanto.
+const DRAFT_KEY = 'biodental_registro_paciente_draft';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -357,6 +364,54 @@ const HiddenInput = styled.input`
   display: none;
 `;
 
+const SelectedFormsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+`;
+
+const SelectedFormChip = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  background: ${({ theme }) => theme.colors.background};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+
+  svg:first-child {
+    width: 16px;
+    height: 16px;
+    color: ${({ theme }) => theme.colors.primary};
+    flex-shrink: 0;
+  }
+`;
+
+const SelectedFormName = styled.span`
+  flex: 1;
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+const RemoveFormButton = styled.button`
+  display: flex;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 2px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+
+  svg { width: 16px; height: 16px; }
+  &:hover { color: ${({ theme }) => theme.colors.dangerText}; }
+`;
+
+const EmptyFormsNote = styled.p`
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin: 0 0 16px;
+`;
+
 const SuccessModalOverlay = styled.div`
   position: fixed;
   top: 0;
@@ -451,20 +506,41 @@ const SecondaryActionBtn = styled.button`
   }
 `;
 
+// Lee el borrador guardado antes de ir a "Seleccionar formularios" (si lo
+// hay) — se lee una sola vez, de forma perezosa, en los useState de abajo.
+const leerBorrador = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
+  } catch {
+    return null;
+  }
+};
+
 const RegistroPaciente = () => {
   const navigate = useNavigate();
-  const [patientType, setPatientType] = useState('Adulto');
+  const location = useLocation();
+  const { showAlert } = useAlert();
+  const [patientType, setPatientType] = useState(() => leerBorrador()?.patientType || 'Adulto');
   const [padecimientosOpen, setPadecimientosOpen] = useState(false);
   const [medicationsOpen, setMedicationsOpen] = useState(false);
   const [allergiesOpen, setAllergiesOpen] = useState(false);
   const [motivoConsultaOpen, setMotivoConsultaOpen] = useState(false);
-  const [patientPhoto, setPatientPhoto] = useState(null);
+  const [patientPhoto, setPatientPhoto] = useState(() => leerBorrador()?.patientPhoto || null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdPatientUuid, setCreatedPatientUuid] = useState(null);
   const [saving, setSaving] = useState(false);
   const photoInputRef = useRef(null);
 
-  const [formData, setFormData] = useState({
+  // Formularios elegidos en SeleccionarFormularioNuevo.js, si se viene de ahí
+  const [selectedFormularios, setSelectedFormularios] = useState(() => location.state?.selectedForms || []);
+
+  // El borrador ya cumplió su función al leerse arriba — se limpia una sola
+  // vez para que no reaparezca en una visita futura a esta pantalla.
+  useEffect(() => {
+    sessionStorage.removeItem(DRAFT_KEY);
+  }, []);
+
+  const [formData, setFormData] = useState(() => ({
     nombre: '',
     apellidos: '',
     birthDate: '',
@@ -475,8 +551,9 @@ const RegistroPaciente = () => {
     padecimientos: '',
     medications: '',
     allergies: '',
-    motivo_consulta: ''
-  });
+    motivo_consulta: '',
+    ...(leerBorrador()?.formData || {})
+  }));
 
   const handlePhotoSelect = (e) => {
     const file = e.target.files[0];
@@ -497,12 +574,23 @@ const RegistroPaciente = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Solo el nombre es obligatorio
     if (!formData.nombre.trim()) {
-      alert('Por favor ingrese el nombre del paciente');
+      showAlert('Por favor ingrese el nombre del paciente', { tipo: 'warning' });
       return;
     }
-    
+    if (!formData.birthDate) {
+      showAlert('Por favor ingrese la fecha de nacimiento del paciente', { tipo: 'warning' });
+      return;
+    }
+    if (!formData.email.trim()) {
+      showAlert('Por favor ingrese el correo del paciente', { tipo: 'warning' });
+      return;
+    }
+    if (!formData.phone.trim()) {
+      showAlert('Por favor ingrese el teléfono del paciente', { tipo: 'warning' });
+      return;
+    }
+
     setSaving(true);
     try {
       // Mapear género al formato de la BD
@@ -534,11 +622,11 @@ const RegistroPaciente = () => {
         setCreatedPatientUuid(response.data.uuid);
         setShowSuccessModal(true);
       } else {
-        alert(response.message || 'Error al registrar paciente');
+        showAlert(response.message || 'Error al registrar paciente', { tipo: 'error' });
       }
     } catch (err) {
       console.error('Error registrando paciente:', err);
-      alert('Error al registrar paciente');
+      showAlert('Error al registrar paciente', { tipo: 'error' });
     } finally {
       setSaving(false);
     }
@@ -556,12 +644,36 @@ const RegistroPaciente = () => {
     }
   };
 
+  const handleLlenarFormularios = () => {
+    setShowSuccessModal(false);
+    if (createdPatientUuid) {
+      // Reutiliza la pantalla de elegir-y-llenar-un-formulario que ya existe
+      // para pacientes existentes — lo elegido aquí antes de crear al
+      // paciente era solo un plan; llenar cada formulario pasa siempre por
+      // ese flujo ya construido y probado.
+      navigate(`/seleccionar-formulario/${createdPatientUuid}`);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+  };
+
+  const handleSeleccionarFormularios = () => {
+    // Guarda lo ya escrito porque SeleccionarFormularioNuevo.js es otra
+    // pantalla (se desmonta este componente al navegar) y solo devuelve
+    // `selectedForms` — el resto del formulario se restaura al volver leyendo
+    // este borrador (ver leerBorrador arriba).
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, patientPhoto, patientType }));
+    navigate('/seleccionar-formulario-nuevo', { state: { returnTo: '/registro-paciente' } });
+  };
+
+  const handleQuitarFormulario = (formId) => {
+    setSelectedFormularios(prev => prev.filter(f => f.id !== formId));
   };
 
   return (
@@ -577,6 +689,11 @@ const RegistroPaciente = () => {
               El paciente ha sido registrado exitosamente. Puedes ir a su perfil para agregar formularios, documentos y completar su información.
             </SuccessMessage>
             <SuccessActions>
+              {selectedFormularios.length > 0 && (
+                <PrimaryActionBtn onClick={handleLlenarFormularios}>
+                  Llenar Formularios Seleccionados ({selectedFormularios.length})
+                </PrimaryActionBtn>
+              )}
               <PrimaryActionBtn onClick={handleGoToProfile}>
                 Ir al Perfil del Paciente
               </PrimaryActionBtn>
@@ -594,7 +711,7 @@ const RegistroPaciente = () => {
         <InfoNote>
           <Info />
           <InfoNoteText>
-            <strong>Registro rápido:</strong> Solo el nombre es obligatorio. Los demás datos, formularios clínicos y documentos adjuntos se pueden agregar o editar desde el perfil del paciente.
+            <strong>Registro rápido:</strong> nombre, fecha de nacimiento, correo y teléfono son obligatorios (marcados con *). Los demás datos, formularios clínicos y documentos adjuntos se pueden agregar o editar desde el perfil del paciente.
           </InfoNoteText>
         </InfoNote>
 
@@ -659,12 +776,13 @@ const RegistroPaciente = () => {
             </FormField>
 
             <FormField>
-              <Label>Fecha de Nacimiento</Label>
+              <Label>Fecha de Nacimiento *</Label>
               <Input
                 type="date"
                 name="birthDate"
                 value={formData.birthDate}
                 onChange={handleChange}
+                required
               />
             </FormField>
 
@@ -705,24 +823,26 @@ const RegistroPaciente = () => {
             </FormField>
 
             <FormField>
-              <Label>Email</Label>
+              <Label>Email *</Label>
               <Input
                 type="email"
                 name="email"
                 placeholder="sofia.martinez@example.com"
                 value={formData.email}
                 onChange={handleChange}
+                required
               />
             </FormField>
 
             <FormField>
-              <Label>Teléfono</Label>
+              <Label>Teléfono *</Label>
               <Input
                 type="tel"
                 name="phone"
                 placeholder="555-123-4567"
                 value={formData.phone}
                 onChange={handleChange}
+                required
               />
             </FormField>
 
@@ -851,6 +971,38 @@ const RegistroPaciente = () => {
                 />
               </CollapsibleContent>
             </CollapsibleSection>
+          </FormSection>
+
+          <FormSection>
+            <SectionHeader>
+              <SectionIcon>
+                <ClipboardList />
+              </SectionIcon>
+              <SectionTitle>Formularios Clínicos</SectionTitle>
+            </SectionHeader>
+
+            {selectedFormularios.length > 0 ? (
+              <SelectedFormsList>
+                {selectedFormularios.map((form) => (
+                  <SelectedFormChip key={form.id}>
+                    <FileText />
+                    <SelectedFormName>{form.name}</SelectedFormName>
+                    <RemoveFormButton type="button" onClick={() => handleQuitarFormulario(form.id)} aria-label={`Quitar ${form.name}`}>
+                      <X />
+                    </RemoveFormButton>
+                  </SelectedFormChip>
+                ))}
+              </SelectedFormsList>
+            ) : (
+              <EmptyFormsNote>
+                Puedes elegir de una vez qué formularios llenar con este paciente (consentimiento, historia clínica, etc.) — es opcional, también se pueden agregar después desde su perfil.
+              </EmptyFormsNote>
+            )}
+
+            <PhotoButton type="button" onClick={handleSeleccionarFormularios}>
+              <ClipboardList />
+              {selectedFormularios.length > 0 ? 'Cambiar selección' : 'Seleccionar formularios'}
+            </PhotoButton>
           </FormSection>
 
           <SubmitButton type="submit" disabled={saving}>

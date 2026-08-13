@@ -20,7 +20,7 @@ const dispararSyncSiNecesario = (doctorId) => {
 
 /**
  * Obtener horarios de un doctor
- * GET /api/horarios/:doctor_uuid
+ * GET /api/horarios/doctor/:doctor_uuid
  */
 const getHorarios = asyncHandler(async (req, res) => {
   const { doctor_uuid } = req.params;
@@ -42,7 +42,7 @@ const getHorarios = asyncHandler(async (req, res) => {
 
 /**
  * Establecer horarios de un doctor
- * POST /api/horarios/:doctor_uuid
+ * PUT /api/horarios/doctor/:doctor_uuid
  */
 const setHorarios = asyncHandler(async (req, res) => {
   const { doctor_uuid } = req.params;
@@ -109,7 +109,7 @@ const setHorarios = asyncHandler(async (req, res) => {
 
 /**
  * Obtener bloqueos de horario de un doctor
- * GET /api/horarios/:doctor_uuid/bloqueos
+ * GET /api/horarios/bloqueos/:doctor_uuid
  */
 const getBloqueos = asyncHandler(async (req, res) => {
   const { doctor_uuid } = req.params;
@@ -146,7 +146,7 @@ const getBloqueos = asyncHandler(async (req, res) => {
 
 /**
  * Crear bloqueo de horario
- * POST /api/horarios/:doctor_uuid/bloqueos
+ * POST /api/horarios/bloqueos/:doctor_uuid
  */
 const createBloqueo = asyncHandler(async (req, res) => {
   const { doctor_uuid } = req.params;
@@ -259,7 +259,7 @@ const deleteBloqueo = asyncHandler(async (req, res) => {
 
 /**
  * Obtener disponibilidad de un doctor en una fecha
- * GET /api/horarios/:doctor_uuid/disponibilidad
+ * GET /api/horarios/disponibilidad/:doctor_uuid
  */
 const getDisponibilidad = asyncHandler(async (req, res) => {
   const { doctor_uuid } = req.params;

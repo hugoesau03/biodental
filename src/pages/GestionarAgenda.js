@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import { usuariosService, citasService, horariosService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -612,6 +613,7 @@ const SaveButton = styled.button`
 const GestionarAgenda = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showAlert } = useAlert();
   
   const [doctor, setDoctor] = useState(null);
   const [dayAppointments, setDayAppointments] = useState([]);
@@ -764,11 +766,11 @@ const GestionarAgenda = () => {
         setWorkSchedule(editingSchedule);
         setShowEditSchedule(false);
       } else {
-        alert('Error al guardar horarios: ' + (response.message || 'Error desconocido'));
+        showAlert('Error al guardar horarios: ' + (response.message || 'Error desconocido'), { tipo: 'error' });
       }
     } catch (err) {
       console.error('Error guardando horarios:', err);
-      alert('Error al guardar horarios');
+      showAlert('Error al guardar horarios', { tipo: 'error' });
     } finally {
       setSaving(false);
     }

@@ -5,6 +5,7 @@ import { User, Camera, Trash2, Loader } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
 import { pacientesService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -287,6 +288,7 @@ const LoadingContainer = styled.div`
 const EditarPaciente = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { showAlert } = useAlert();
   const [patientType, setPatientType] = useState('adulto');
   const [patientPhoto, setPatientPhoto] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -374,7 +376,7 @@ const EditarPaciente = () => {
     e.preventDefault();
     
     if (!formData.nombre) {
-      alert('Por favor ingrese el nombre del paciente');
+      showAlert('Por favor ingrese el nombre del paciente', { tipo: 'warning' });
       return;
     }
     
@@ -400,11 +402,11 @@ const EditarPaciente = () => {
       if (response.success) {
         setShowSuccessModal(true);
       } else {
-        alert(response.message || 'Error al actualizar paciente');
+        showAlert(response.message || 'Error al actualizar paciente', { tipo: 'error' });
       }
     } catch (err) {
       console.error('Error actualizando paciente:', err);
-      alert('Error al actualizar paciente');
+      showAlert('Error al actualizar paciente', { tipo: 'error' });
     } finally {
       setSaving(false);
     }

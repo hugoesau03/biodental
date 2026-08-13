@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, UserPlus, BarChart3, Stethoscope, ChevronRight, Clock, ChevronDown, Loader } from 'lucide-react';
+import { Calendar, UserPlus, BarChart3, Stethoscope, ChevronRight, Clock, ChevronDown, Loader, LogIn, QrCode } from 'lucide-react';
 import { citasService, usuariosService, serviciosService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -175,6 +175,65 @@ const DropdownItem = styled.button`
 
   &:hover {
     background: ${({ theme }) => theme.colors.gray};
+  }
+`;
+
+const WaitingRoomList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const WaitingRoomItem = styled.div`
+  background: ${({ theme }) => theme.colors.white};
+  border-radius: 10px;
+  padding: 12px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  border-left: 4px solid #2E7D32;
+  transition: all 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  }
+`;
+
+const WaitingRoomInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const WaitingRoomPatient = styled.span`
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 14px;
+`;
+
+const WaitingRoomMeta = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`;
+
+const WaitingRoomTime = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2E7D32;
+  background: #E8F5E9;
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+
+  svg {
+    width: 14px;
+    height: 14px;
   }
 `;
 
@@ -377,7 +436,8 @@ const Inicio = () => {
             date: c.fecha,
             time: c.hora_inicio?.substring(0, 5),
             type: c.tipo || 'Consulta',
-            status: c.estado
+            status: c.estado,
+            checkinAt: c.checkin_at
           }));
           setAppointments(citasFormateadas);
         }
@@ -410,6 +470,13 @@ const Inicio = () => {
     const matchService = !selectedService || apt.type === selectedService;
     return matchDoctor && matchService;
   });
+
+  // Sala de espera: pacientes que ya hicieron check-in (recepción o su
+  // propio portal) pero cuya consulta todavía no arranca. Visible para
+  // todos los roles, no solo recepción.
+  const waitingRoom = appointments
+    .filter(apt => apt.checkinAt && !['en_progreso', 'completada', 'cancelada', 'no_asistio'].includes(apt.status))
+    .sort((a, b) => new Date(a.checkinAt) - new Date(b.checkinAt));
 
   // Citas próximas de hoy (que no han pasado y no están completadas/canceladas)
   const todayAppointments = filteredAppointments.filter(apt => {
@@ -457,8 +524,32 @@ const Inicio = () => {
               <Stethoscope />
               <span>Mis Médicos</span>
             </ActionCard>
+            <ActionCard onClick={() => navigate('/escanear-checkin')}>
+              <QrCode />
+              <span>Escanear Check-in</span>
+            </ActionCard>
           </QuickActionsGrid>
         </Section>
+
+        {waitingRoom.length > 0 && (
+          <Section>
+            <SectionTitle>Sala de Espera ({waitingRoom.length})</SectionTitle>
+            <WaitingRoomList>
+              {waitingRoom.map(apt => (
+                <WaitingRoomItem key={apt.uuid} onClick={() => navigate(`/detalle-cita/${apt.uuid}`)}>
+                  <WaitingRoomInfo>
+                    <WaitingRoomPatient>{apt.patient}</WaitingRoomPatient>
+                    <WaitingRoomMeta>{apt.doctor} · Cita {apt.time}</WaitingRoomMeta>
+                  </WaitingRoomInfo>
+                  <WaitingRoomTime>
+                    <LogIn />
+                    {new Date(apt.checkinAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                  </WaitingRoomTime>
+                </WaitingRoomItem>
+              ))}
+            </WaitingRoomList>
+          </Section>
+        )}
 
         <Section>
           <SectionTitle>Filtrar Citas</SectionTitle>

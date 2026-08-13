@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Bell, User, X, Calendar, AlertCircle, CheckCircle, Home, Users, Stethoscope, BarChart3, Package, AlertTriangle, Trash2 } from 'lucide-react';
+import { Bell, User, X, Calendar, AlertCircle, CheckCircle, Home, Users, Stethoscope, BarChart3, Package, AlertTriangle, Trash2, MessageCircle } from 'lucide-react';
 import { useNotificaciones } from '../../context/NotificacionesContext';
 import { useAuth } from '../../context/AuthContext';
+import { useThemeMode } from '../../context/ThemeContext';
+import { chatService } from '../../services/api';
 
 const HeaderContainer = styled.div`
   background: ${({ theme }) => theme.colors.white};
@@ -20,13 +22,34 @@ const HeaderContainer = styled.div`
   }
 `;
 
+const LogoGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+`;
+
+const LogoIconBox = styled.div`
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: ${({ theme }) => theme.colors.primary};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+  svg { width: 18px; height: 18px; color: white; }
+`;
+
 const Logo = styled.h1`
   font-size: 24px;
   font-weight: ${({ theme }) => theme.fontWeights.bold};
   color: ${({ theme }) => theme.colors.text};
   margin: 0;
   letter-spacing: -0.3px;
-  cursor: pointer;
 `;
 
 const DesktopNav = styled.nav`
@@ -433,6 +456,7 @@ const MainHeader = () => {
   
   // Usar contexto de autenticación
   const { user } = useAuth();
+  const { logoBlob } = useThemeMode();
   
   // Usar contexto de notificaciones
   const { 
@@ -443,6 +467,19 @@ const MainHeader = () => {
     limpiarTodas,
     fetchNotificaciones
   } = useNotificaciones();
+
+  // Badge de mensajes de chat sin leer (pacientes escribiéndole a recepción)
+  const [chatNoLeidos, setChatNoLeidos] = useState(0);
+  useEffect(() => {
+    const cargarChatNoLeidos = () => {
+      chatService.getNoLeidos()
+        .then((res) => { if (res.success) setChatNoLeidos(res.data.no_leidos); })
+        .catch(() => {});
+    };
+    cargarChatNoLeidos();
+    const timer = setInterval(cargarChatNoLeidos, 20000);
+    return () => clearInterval(timer);
+  }, []);
 
   const navItems = [
     { path: '/', icon: Home, label: 'Inicio' },
@@ -533,7 +570,12 @@ const MainHeader = () => {
 
   return (
     <HeaderContainer>
-      <Logo onClick={() => navigate('/')}>Biodental</Logo>
+      <LogoGroup onClick={() => navigate('/')}>
+        <LogoIconBox>
+          {logoBlob ? <img src={logoBlob} alt="" /> : <Stethoscope />}
+        </LogoIconBox>
+        <Logo>Bio Dental</Logo>
+      </LogoGroup>
       
       <DesktopNav>
         {navItems.map((item) => {
@@ -554,6 +596,10 @@ const MainHeader = () => {
       </DesktopNav>
 
       <IconsContainer>
+        <IconButton onClick={() => navigate('/mensajes')} title="Chat con pacientes">
+          <MessageCircle />
+          {chatNoLeidos > 0 && <NotificationBadge>{chatNoLeidos}</NotificationBadge>}
+        </IconButton>
         <div ref={notificationsRef} style={{ position: 'relative' }}>
           <IconButton onClick={toggleNotifications}>
             <Bell />

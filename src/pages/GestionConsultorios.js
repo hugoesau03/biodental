@@ -16,6 +16,7 @@ import {
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
 import { consultoriosInternosService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -416,6 +417,7 @@ const COLORS = [
 
 const GestionConsultorios = () => {
   const navigate = useNavigate();
+  const { showAlert, showConfirm } = useAlert();
   const [consultorios, setConsultorios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -484,7 +486,7 @@ const GestionConsultorios = () => {
 
   const handleSave = async () => {
     if (!formData.nombre.trim()) {
-      alert('El nombre del consultorio es requerido');
+      showAlert('El nombre del consultorio es requerido', { tipo: 'warning' });
       return;
     }
 
@@ -499,14 +501,14 @@ const GestionConsultorios = () => {
       handleCloseModal();
     } catch (error) {
       console.error('Error al guardar consultorio:', error);
-      alert('Error al guardar el consultorio');
+      showAlert('Error al guardar el consultorio', { tipo: 'error' });
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (consultorio) => {
-    if (!window.confirm(`¿Estás seguro de eliminar "${consultorio.nombre}"?`)) {
+    if (!(await showConfirm(`¿Estás seguro de eliminar "${consultorio.nombre}"?`))) {
       return;
     }
 
@@ -515,7 +517,7 @@ const GestionConsultorios = () => {
       await fetchConsultorios();
     } catch (error) {
       console.error('Error al eliminar consultorio:', error);
-      alert('Error al eliminar el consultorio');
+      showAlert('Error al eliminar el consultorio', { tipo: 'error' });
     }
   };
 

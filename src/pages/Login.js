@@ -250,13 +250,16 @@ const ErrorMessage = styled.div`
   text-align: center;
 `;
 
+const CORREO_RECORDADO_KEY = 'biodental_remembered_email';
+
 const Login = () => {
   const navigate = useNavigate();
   const { login, isAuthenticated, error: authError, clearError } = useAuth();
-  const [email, setEmail] = useState('');
+  const correoRecordado = localStorage.getItem(CORREO_RECORDADO_KEY) || '';
+  const [email, setEmail] = useState(correoRecordado);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(Boolean(correoRecordado));
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -290,9 +293,14 @@ const Login = () => {
     try {
       const result = await login(email, password, rememberMe);
       console.log('Login result:', result); // Debug
-      
+
       if (result.success) {
         console.log('Login successful, navigating...'); // Debug
+        if (rememberMe) {
+          localStorage.setItem(CORREO_RECORDADO_KEY, email);
+        } else {
+          localStorage.removeItem(CORREO_RECORDADO_KEY);
+        }
         navigate('/');
       } else {
         setError(result.message || 'Error al iniciar sesión');
@@ -312,7 +320,7 @@ const Login = () => {
           <LogoIcon>
             <Stethoscope />
           </LogoIcon>
-          <AppName>Biodental</AppName>
+          <AppName>Bio Dental</AppName>
           <AppTagline>Sistema de Gestión Médica</AppTagline>
         </LogoContainer>
 

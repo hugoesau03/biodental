@@ -23,6 +23,7 @@ const googleCalendarRoutes = require('./googleCalendar');
 const portalRoutes = require('./portal');
 const promocionesRoutes = require('./promociones');
 const canjesRoutes = require('./canjes');
+const chatRoutes = require('./chat');
 
 // Montar rutas
 router.use('/auth', authRoutes);
@@ -46,6 +47,7 @@ router.use('/google-calendar', googleCalendarRoutes);
 router.use('/portal', portalRoutes);
 router.use('/promociones', promocionesRoutes);
 router.use('/canjes', canjesRoutes);
+router.use('/chat', chatRoutes);
 
 // Ruta de health check
 router.get('/health', (req, res) => {

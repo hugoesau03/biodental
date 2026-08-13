@@ -27,11 +27,13 @@ import {
   UserCheck,
   DoorOpen,
   MessageCircle,
-  Send
+  Send,
+  LogIn
 } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
-import { citasService, serviciosService, horariosService, whatsappService } from '../services/api';
+import { citasService, serviciosService, horariosService, whatsappService, consultoriosInternosService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -779,6 +781,7 @@ const ResultButton = styled.button`
 const DetalleCita = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showAlert } = useAlert();
   
   const [appointment, setAppointment] = useState(null);
   const [allServices, setAllServices] = useState([]);
@@ -813,19 +816,32 @@ const DetalleCita = () => {
   const [whatsappInfo, setWhatsappInfo] = useState({ configurado: true, telefono_paciente: null, mensajes: [] });
   const [sendingWhatsapp, setSendingWhatsapp] = useState(null); // 'confirmacion' | 'recordatorio' | null
   const [confirmandoAsistencia, setConfirmandoAsistencia] = useState(false);
+  const [togglingCheckin, setTogglingCheckin] = useState(false);
+
+  // Asignación de consultorio (sala) físico a la cita
+  const [consultoriosInternos, setConsultoriosInternos] = useState([]);
+  const [isEditingConsultorio, setIsEditingConsultorio] = useState(false);
+  const [selectedConsultorioUuid, setSelectedConsultorioUuid] = useState('');
+  const [savingConsultorio, setSavingConsultorio] = useState(false);
 
   // Cargar cita y servicios
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [citaRes, serviciosRes] = await Promise.all([
+        const [citaRes, serviciosRes, consultoriosRes] = await Promise.all([
           citasService.getOne(id),
-          serviciosService.getAll()
+          serviciosService.getAll(),
+          consultoriosInternosService.getActivos()
         ]);
-        
+
+        if (consultoriosRes.success) {
+          setConsultoriosInternos(consultoriosRes.data.consultorios || []);
+        }
+
         if (citaRes.success) {
           setAppointment(citaRes.data);
+          setSelectedConsultorioUuid(citaRes.data.consultorio_interno_uuid || '');
           // Convertir servicios de la cita al formato esperado
           const citaServicios = (citaRes.data.servicios || []).map(s => ({
             id: s.id,
@@ -954,10 +970,44 @@ const DetalleCita = () => {
       setIsEditingServices(false);
     } catch (err) {
       console.error('Error guardando servicios:', err);
-      alert('Error al guardar los servicios');
+      showAlert('Error al guardar los servicios', { tipo: 'error' });
     }
   };
   
+  // Asignar/cambiar el consultorio (sala) físico de la cita. No tiene
+  // restricción de rol en el backend: cualquier miembro del staff (incluida
+  // recepción) puede asignarlo o reasignarlo.
+  const handleGuardarConsultorio = async () => {
+    setSavingConsultorio(true);
+    try {
+      const response = await citasService.update(id, {
+        consultorio_interno_uuid: selectedConsultorioUuid || null
+      });
+      if (response.success) {
+        const elegido = consultoriosInternos.find(c => c.uuid === selectedConsultorioUuid);
+        setAppointment(prev => prev ? {
+          ...prev,
+          consultorio_interno_uuid: elegido?.uuid || null,
+          consultorio_interno_nombre: elegido?.nombre || null,
+          consultorio_interno_color: elegido?.color || null
+        } : prev);
+        setIsEditingConsultorio(false);
+      } else {
+        showAlert(response.message || 'Error al asignar el consultorio', { tipo: 'error' });
+      }
+    } catch (err) {
+      console.error('Error asignando consultorio:', err);
+      showAlert('Error al asignar el consultorio', { tipo: 'error' });
+    } finally {
+      setSavingConsultorio(false);
+    }
+  };
+
+  const handleCancelarEdicionConsultorio = () => {
+    setSelectedConsultorioUuid(appointment?.consultorio_interno_uuid || '');
+    setIsEditingConsultorio(false);
+  };
+
   // Cancelar edición
   const handleCancelEdit = () => {
     // Restaurar servicios originales
@@ -1315,6 +1365,24 @@ const DetalleCita = () => {
   };
 
   // Marcar asistencia (cambiar estado a en_progreso o completada)
+  // Check-in de recepción: marca/desmarca la llegada del paciente a la
+  // clínica. Es el mismo campo que el paciente puede marcar desde su
+  // portal el día de la cita; desde aquí el personal lo puede alternar
+  // libremente (p. ej. si el paciente llegó sin usar el portal).
+  const handleToggleCheckin = async () => {
+    setTogglingCheckin(true);
+    try {
+      const response = await citasService.checkin(id);
+      if (response.success) {
+        setAppointment(prev => prev ? { ...prev, checkin_at: response.data.checkin_at } : prev);
+      }
+    } catch (err) {
+      console.error('Error al registrar check-in:', err);
+    } finally {
+      setTogglingCheckin(false);
+    }
+  };
+
   const handleMarcarAsistencia = async () => {
     try {
       const response = await citasService.update(id, { estado: 'en_progreso' });
@@ -1634,22 +1702,79 @@ const DetalleCita = () => {
           </PersonCard>
         </MainCard>
 
-        {/* Consultorio interno */}
-        {appointment.consultorio_interno_nombre && (
+        {/* Consultorio interno (sala física) */}
+        {appointment.estado !== 'cancelada' && (
           <MainCard>
-            <SectionTitle>
-              <DoorOpen />
-              Consultorio
-            </SectionTitle>
-            <PersonCard style={{ cursor: 'default' }}>
-              <PersonImage style={{ background: appointment.consultorio_interno_color || '#6366F1' }}>
+            <SectionHeader>
+              <SectionTitle>
                 <DoorOpen />
-              </PersonImage>
-              <PersonInfo>
-                <PersonName>{appointment.consultorio_interno_nombre}</PersonName>
-                <PersonDetail>Consultorio asignado</PersonDetail>
-              </PersonInfo>
-            </PersonCard>
+                Consultorio
+              </SectionTitle>
+              {!isEditingConsultorio ? (
+                <EditServicesButton onClick={() => setIsEditingConsultorio(true)}>
+                  <Edit />
+                  {appointment.consultorio_interno_nombre ? 'Cambiar' : 'Asignar'}
+                </EditServicesButton>
+              ) : (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <EditServicesButton onClick={handleCancelarEdicionConsultorio}>
+                    <X />
+                    Cancelar
+                  </EditServicesButton>
+                  <EditServicesButton
+                    onClick={handleGuardarConsultorio}
+                    disabled={savingConsultorio}
+                    style={{ background: '#4CAF50', color: 'white', borderColor: '#4CAF50' }}
+                  >
+                    <Check />
+                    {savingConsultorio ? 'Guardando...' : 'Guardar'}
+                  </EditServicesButton>
+                </div>
+              )}
+            </SectionHeader>
+
+            {isEditingConsultorio ? (
+              consultoriosInternos.length === 0 ? (
+                <NotesText>
+                  No hay consultorios registrados. Puedes crear uno desde Consultorios en el menú de Administración.
+                </NotesText>
+              ) : (
+                <ServicesContainer>
+                  {consultoriosInternos.map(consultorio => (
+                    <ServiceItem
+                      key={consultorio.uuid}
+                      $selected={selectedConsultorioUuid === consultorio.uuid}
+                      $editable={true}
+                      onClick={() => setSelectedConsultorioUuid(consultorio.uuid)}
+                    >
+                      <ServiceInfo>
+                        <ServiceCheckbox $checked={selectedConsultorioUuid === consultorio.uuid}>
+                          {selectedConsultorioUuid === consultorio.uuid && <Check />}
+                        </ServiceCheckbox>
+                        <ServiceDetails>
+                          <ServiceName>{consultorio.nombre}</ServiceName>
+                          <ServiceMeta>
+                            <span>{consultorio.ubicacion || 'Sin ubicación'}</span>
+                          </ServiceMeta>
+                        </ServiceDetails>
+                      </ServiceInfo>
+                    </ServiceItem>
+                  ))}
+                </ServicesContainer>
+              )
+            ) : appointment.consultorio_interno_nombre ? (
+              <PersonCard style={{ cursor: 'default' }}>
+                <PersonImage style={{ background: appointment.consultorio_interno_color || '#6366F1' }}>
+                  <DoorOpen />
+                </PersonImage>
+                <PersonInfo>
+                  <PersonName>{appointment.consultorio_interno_nombre}</PersonName>
+                  <PersonDetail>Consultorio asignado</PersonDetail>
+                </PersonInfo>
+              </PersonCard>
+            ) : (
+              <NotesText>Sin consultorio asignado todavía.</NotesText>
+            )}
           </MainCard>
         )}
 
@@ -1760,6 +1885,21 @@ const DetalleCita = () => {
         <MainCard>
           <SectionTitle>Acciones</SectionTitle>
           <ActionsContainer>
+            {appointment.estado !== 'cancelada' && (
+              appointment.checkin_at ? (
+                <SecondaryButton onClick={handleToggleCheckin} disabled={togglingCheckin}>
+                  <LogIn />
+                  {togglingCheckin
+                    ? 'Guardando...'
+                    : `Llegó a las ${new Date(appointment.checkin_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} · Deshacer`}
+                </SecondaryButton>
+              ) : (
+                <SuccessButton onClick={handleToggleCheckin} disabled={togglingCheckin}>
+                  <LogIn />
+                  {togglingCheckin ? 'Guardando...' : 'Registrar llegada (recepción)'}
+                </SuccessButton>
+              )
+            )}
             {appointment.pagado ? (
               // Si ya está pagado, solo mostrar Ver Recibo
               <SecondaryButton onClick={() => navigate(`/generar-recibo/${appointment.uuid}`)}>
@@ -1773,7 +1913,7 @@ const DetalleCita = () => {
                   <>
                     <SuccessButton onClick={handleMarcarAsistencia}>
                       <UserCheck />
-                      Marcar Asistencia
+                      Iniciar Consulta
                     </SuccessButton>
                     <WarningButton onClick={handleMarcarInasistencia}>
                       <UserX />

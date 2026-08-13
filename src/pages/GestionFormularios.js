@@ -22,6 +22,7 @@ import {
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
 import { formulariosService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -645,6 +646,7 @@ const RequiredToggle = styled.label`
 
 const GestionFormularios = () => {
   const navigate = useNavigate();
+  const { showAlert } = useAlert();
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -810,7 +812,7 @@ const GestionFormularios = () => {
       handleCloseModal();
     } catch (error) {
       console.error('Error saving form:', error);
-      alert('Error al guardar el formulario');
+      showAlert('Error al guardar el formulario', { tipo: 'error' });
     } finally {
       setSaving(false);
     }
@@ -828,7 +830,7 @@ const GestionFormularios = () => {
         await fetchForms();
       } catch (error) {
         console.error('Error deleting form:', error);
-        alert('Error al eliminar el formulario');
+        showAlert('Error al eliminar el formulario', { tipo: 'error' });
       }
     }
     setShowDeleteModal(false);

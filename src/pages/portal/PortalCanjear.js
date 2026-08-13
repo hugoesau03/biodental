@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { Loader, Gift, Package, Stethoscope, ChevronLeft, CheckCircle } from 'lucide-react';
 import { portalService } from '../../services/api';
+import { useAlert } from '../../context/AlertContext';
 import { PortalPage, PortalCard, PortalSectionTitle, PortalEmptyState, PortalBadge } from '../../components/Portal/PortalUI';
 
 const CenteredLoader = styled.div`
@@ -69,6 +70,7 @@ const EstadoColor = { pendiente: 'warning', entregado: 'success', cancelado: 'da
 
 const PortalCanjear = () => {
   const navigate = useNavigate();
+  const { showAlert, showConfirm } = useAlert();
   const [productos, setProductos] = useState([]);
   const [servicios, setServicios] = useState([]);
   const [canjes, setCanjes] = useState([]);
@@ -100,15 +102,15 @@ const PortalCanjear = () => {
   const canjear = async (item) => {
     if (puntos < item.puntos_precio) return;
     const etiqueta = item.tipo === 'servicio' ? 'tratamiento' : 'producto';
-    if (!window.confirm(`¿Canjear "${item.nombre}" (${etiqueta}) por ${item.puntos_precio} puntos?`)) return;
+    if (!(await showConfirm(`¿Canjear "${item.nombre}" (${etiqueta}) por ${item.puntos_precio} puntos?`))) return;
 
     setCanjeandoUuid(item.uuid);
     try {
       const res = await portalService.crearCanje(item.tipo, item.uuid, 1);
-      alert(res.message || 'Canje realizado');
+      showAlert(res.message || 'Canje realizado', { tipo: 'success' });
       await cargar();
     } catch (err) {
-      alert(err.response?.data?.message || 'No se pudo realizar el canje');
+      showAlert(err.response?.data?.message || 'No se pudo realizar el canje', { tipo: 'error' });
     } finally {
       setCanjeandoUuid(null);
     }

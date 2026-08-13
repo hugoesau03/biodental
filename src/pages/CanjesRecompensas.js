@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { Gift, Loader, Check, X, Phone } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import { canjesService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -145,6 +146,7 @@ const CenteredLoader = styled.div`
 `;
 
 const CanjesRecompensas = () => {
+  const { showAlert, showConfirm } = useAlert();
   const [canjes, setCanjes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('pendiente');
@@ -165,13 +167,13 @@ const CanjesRecompensas = () => {
   useEffect(() => { cargar(); }, [cargar]);
 
   const entregar = async (canje) => {
-    if (!window.confirm(`¿Confirmar que se entregó "${canje.item_nombre}" a ${canje.paciente_nombre}?`)) return;
+    if (!(await showConfirm(`¿Confirmar que se entregó "${canje.item_nombre}" a ${canje.paciente_nombre}?`))) return;
     setProcesandoUuid(canje.uuid);
     try {
       await canjesService.entregar(canje.uuid);
       await cargar();
     } catch (err) {
-      alert(err.response?.data?.message || 'Error al marcar como entregado');
+      showAlert(err.response?.data?.message || 'Error al marcar como entregado', { tipo: 'error' });
     } finally {
       setProcesandoUuid(null);
     }
@@ -179,13 +181,13 @@ const CanjesRecompensas = () => {
 
   const cancelar = async (canje) => {
     const devuelve = canje.tipo === 'servicio' ? 'los puntos' : 'los puntos y el stock';
-    if (!window.confirm(`¿Cancelar este canje? Se devolverán ${devuelve} al paciente.`)) return;
+    if (!(await showConfirm(`¿Cancelar este canje? Se devolverán ${devuelve} al paciente.`))) return;
     setProcesandoUuid(canje.uuid);
     try {
       await canjesService.cancelar(canje.uuid);
       await cargar();
     } catch (err) {
-      alert(err.response?.data?.message || 'Error al cancelar el canje');
+      showAlert(err.response?.data?.message || 'Error al cancelar el canje', { tipo: 'error' });
     } finally {
       setProcesandoUuid(null);
     }

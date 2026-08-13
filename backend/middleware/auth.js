@@ -25,7 +25,8 @@ const authMiddleware = async (req, res, next) => {
     // Buscar usuario en la base de datos
     const [users] = await pool.query(
       `SELECT u.id, u.uuid, u.email, u.nombre, u.apellidos, u.rol, u.consultorio_id,
-              u.especialidad, u.activo, u.es_superadmin, c.nombre as consultorio_nombre, c.uuid as consultorio_uuid
+              u.especialidad, u.activo, u.es_superadmin, u.tokens_invalidos_antes,
+              c.nombre as consultorio_nombre, c.uuid as consultorio_uuid
        FROM usuarios u
        JOIN consultorios c ON u.consultorio_id = c.id
        WHERE u.id = ? AND u.activo = TRUE AND c.activo = TRUE`,
@@ -36,6 +37,19 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Usuario no encontrado o inactivo'
+      });
+    }
+
+    // Revocación: si el usuario cerró sesión en todos los dispositivos o
+    // cambió su contraseña después de que se emitió este token (iat, en
+    // segundos), el token ya no es válido aunque no haya expirado.
+    if (
+      users[0].tokens_invalidos_antes &&
+      decoded.iat * 1000 < new Date(users[0].tokens_invalidos_antes).getTime()
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: 'Sesión cerrada. Vuelve a iniciar sesión.'
       });
     }
 

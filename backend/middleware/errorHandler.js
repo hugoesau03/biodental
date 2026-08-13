@@ -1,8 +1,16 @@
+const logger = require('../services/logger');
+const { captureException } = require('../services/monitoring');
+
 /**
  * Middleware para manejo centralizado de errores
  */
 const errorHandler = (err, req, res, next) => {
-  console.error('Error:', err);
+  logger.error(err.message, {
+    method: req.method,
+    path: req.originalUrl,
+    stack: err.stack
+  });
+  captureException(err, { method: req.method, path: req.originalUrl });
 
   // Error de validación de express-validator
   if (err.array && typeof err.array === 'function') {

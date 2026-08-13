@@ -83,6 +83,31 @@ const HelpText = styled.p`
   a:hover { text-decoration: underline; }
 `;
 
+const TerminosRow = styled.label`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  cursor: pointer;
+
+  input {
+    margin-top: 2px;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  a {
+    color: ${({ theme }) => theme.colors.primary};
+    font-weight: 600;
+    text-decoration: none;
+  }
+  a:hover { text-decoration: underline; }
+`;
+
 const PortalRegistro = () => {
   const navigate = useNavigate();
   const { registro, isAuthenticated, error: authError, clearError } = usePortalAuth();
@@ -90,6 +115,8 @@ const PortalRegistro = () => {
   const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [aceptaPrivacidad, setAceptaPrivacidad] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -115,8 +142,22 @@ const PortalRegistro = () => {
       setError('La contraseña debe tener al menos 8 caracteres');
       return;
     }
+    if (!aceptaTerminos) {
+      setError('Debes aceptar los términos y condiciones para continuar');
+      return;
+    }
+    if (!aceptaPrivacidad) {
+      setError('Debes leer el Aviso de Privacidad y dar tu consentimiento para el tratamiento de tus datos');
+      return;
+    }
     setIsLoading(true);
-    const result = await registro({ telefono: telefono.trim(), fecha_nacimiento: fechaNacimiento, password });
+    const result = await registro({
+      telefono: telefono.trim(),
+      fecha_nacimiento: fechaNacimiento,
+      password,
+      terminos_aceptados: aceptaTerminos,
+      privacidad_aceptada: aceptaPrivacidad
+    });
     if (result.success) {
       navigate('/portal');
     } else {
@@ -169,7 +210,32 @@ const PortalRegistro = () => {
             </InputWrapper>
           </div>
 
-          <PortalButton type="submit" disabled={isLoading}>
+          <TerminosRow>
+            <input
+              type="checkbox"
+              checked={aceptaTerminos}
+              onChange={(e) => setAceptaTerminos(e.target.checked)}
+            />
+            <span>
+              Acepto los <Link to="/portal/terminos" target="_blank" rel="noopener noreferrer">términos y condiciones</Link> del
+              portal de pacientes de Bio Dental.
+            </span>
+          </TerminosRow>
+
+          <TerminosRow>
+            <input
+              type="checkbox"
+              checked={aceptaPrivacidad}
+              onChange={(e) => setAceptaPrivacidad(e.target.checked)}
+            />
+            <span>
+              He leído el <Link to="/portal/privacidad" target="_blank" rel="noopener noreferrer">Aviso de Privacidad</Link> y
+              otorgo mi consentimiento expreso para el tratamiento de mis datos personales, incluyendo datos
+              relacionados con mi salud.
+            </span>
+          </TerminosRow>
+
+          <PortalButton type="submit" disabled={isLoading || !aceptaTerminos || !aceptaPrivacidad}>
             {isLoading ? 'Activando...' : 'Activar mi acceso'}
           </PortalButton>
 

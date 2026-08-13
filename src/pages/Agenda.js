@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Search, Loader, DoorOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Search, Loader, DoorOpen, UserCheck } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import FloatingButton from '../components/Layout/FloatingButton';
 import { citasService, usuariosService, consultoriosInternosService, horariosService } from '../services/api';
@@ -780,6 +780,52 @@ const StatusBadge = styled.span`
   }};
 `;
 
+const CheckinBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #E8F5E9;
+  color: #2E7D32;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+`;
+
+const CheckinButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.white};
+  color: ${({ theme }) => theme.colors.text};
+  cursor: pointer;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.primary};
+    color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
 // Función para formatear el estado para mostrar
 const formatEstado = (estado) => {
   const estados = {
@@ -807,6 +853,7 @@ const formatFechaCita = (fechaStr) => {
 const Agenda = () => {
   const navigate = useNavigate();
   const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const [appointments, setAppointments] = useState([]);
   const [allMonthCitas, setAllMonthCitas] = useState([]); // Citas de todo el mes para indicadores
   const [doctors, setDoctors] = useState([]);
@@ -823,6 +870,7 @@ const Agenda = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [horariosDisponibles, setHorariosDisponibles] = useState([]);
   const [loadingHorarios, setLoadingHorarios] = useState(false);
+  const [checkinLoadingUuid, setCheckinLoadingUuid] = useState(null);
   const searchInputRef = useRef(null);
   const doctorFilterRef = useRef(null);
   const statusFilterRef = useRef(null);
@@ -941,6 +989,28 @@ const Agenda = () => {
 
   const toggleSearch = () => {
     setShowSearch(prev => !prev);
+  };
+
+  // Check-in de recepción: marca/desmarca la llegada del paciente, el mismo
+  // campo que el paciente puede marcar desde su portal.
+  const handleToggleCheckin = async (e, appointment) => {
+    e.stopPropagation();
+    if (checkinLoadingUuid) return;
+
+    setCheckinLoadingUuid(appointment.uuid);
+    try {
+      const response = await citasService.checkin(appointment.uuid);
+      if (response.success) {
+        const nuevoCheckin = response.data.checkin_at;
+        setAppointments(prev => prev.map(apt =>
+          apt.uuid === appointment.uuid ? { ...apt, checkin_at: nuevoCheckin } : apt
+        ));
+      }
+    } catch (err) {
+      console.error('Error al registrar check-in:', err);
+    } finally {
+      setCheckinLoadingUuid(null);
+    }
   };
 
   const scrollFilters = (ref, direction) => {
@@ -1442,6 +1512,23 @@ const Agenda = () => {
                           </ConsultorioInfo>
                         )}
                       </DoctorInfo>
+                      {appointment.fecha?.split('T')[0] === todayStr &&
+                        !['cancelada', 'no_asistio'].includes(appointment.estado) && (
+                          appointment.checkin_at ? (
+                            <CheckinBadge title={`Llegó a las ${new Date(appointment.checkin_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`}>
+                              <UserCheck />
+                              En sala de espera
+                            </CheckinBadge>
+                          ) : (
+                            <CheckinButton
+                              onClick={(e) => handleToggleCheckin(e, appointment)}
+                              disabled={checkinLoadingUuid === appointment.uuid}
+                            >
+                              <UserCheck />
+                              {checkinLoadingUuid === appointment.uuid ? 'Guardando...' : 'Registrar llegada'}
+                            </CheckinButton>
+                          )
+                        )}
                       <StatusBadge $status={appointment.estado}>
                         {formatEstado(appointment.estado)}
                       </StatusBadge>

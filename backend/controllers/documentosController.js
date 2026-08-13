@@ -1,6 +1,10 @@
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/database');
 const { asyncHandler } = require('../middleware');
+const { validarArchivoBase64 } = require('../utils/archivoValidator');
+
+const DOCUMENTO_MIMES_PERMITIDOS = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf'];
+const DOCUMENTO_MAX_BYTES = 10 * 1024 * 1024; // 10MB
 
 /**
  * Obtener documentos de un paciente
@@ -46,13 +50,32 @@ const getDocumentos = asyncHandler(async (req, res) => {
  */
 const createDocumento = asyncHandler(async (req, res) => {
   const { uuid } = req.params;
-  const { nombre, tipo_archivo, tamanio, contenido, descripcion } = req.body;
+  const { nombre, contenido, descripcion } = req.body;
 
   if (!nombre || !contenido) {
     return res.status(400).json({
       success: false,
       message: 'Nombre y contenido son requeridos'
     });
+  }
+
+  if (String(nombre).length > 200) {
+    return res.status(400).json({
+      success: false,
+      message: 'El nombre del documento es demasiado largo (máximo 200 caracteres)'
+    });
+  }
+
+  // Antes se guardaba tal cual el tipo_archivo/tamanio que mandara el
+  // cliente, sin verificar que "contenido" fuera realmente un archivo del
+  // tipo declarado ni su tamaño real.
+  const validacion = validarArchivoBase64(contenido, {
+    mimesPermitidos: DOCUMENTO_MIMES_PERMITIDOS,
+    maxBytes: DOCUMENTO_MAX_BYTES
+  });
+
+  if (!validacion.valido) {
+    return res.status(400).json({ success: false, message: validacion.error });
   }
 
   // Verificar que el paciente existe y pertenece al consultorio
@@ -70,11 +93,15 @@ const createDocumento = asyncHandler(async (req, res) => {
 
   const pacienteId = pacientes[0].id;
   const documentoUuid = uuidv4();
+  // tipo_archivo/tamanio se guardan según lo que se verificó del
+  // contenido real, no según lo que declaró el cliente.
+  const tipoArchivo = validacion.mime;
+  const tamanio = validacion.bytes;
 
   const [result] = await pool.query(
     `INSERT INTO documentos_paciente (paciente_id, uuid, nombre, tipo_archivo, tamanio, contenido, descripcion)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [pacienteId, documentoUuid, nombre, tipo_archivo || null, tamanio || null, contenido, descripcion || null]
+    [pacienteId, documentoUuid, nombre, tipoArchivo, tamanio, contenido, descripcion || null]
   );
 
   res.status(201).json({
@@ -84,7 +111,7 @@ const createDocumento = asyncHandler(async (req, res) => {
       id: result.insertId,
       uuid: documentoUuid,
       nombre,
-      tipo_archivo,
+      tipo_archivo: tipoArchivo,
       tamanio
     }
   });

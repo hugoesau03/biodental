@@ -1,0 +1,65 @@
+name: CI
+
+# Corre en cada push y pull request a main: prueba el backend y el
+# frontend por separado y compila el frontend para atrapar errores reales
+# (imports rotos, sintaxis, etc.) antes de que lleguen a producción.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Correr tests
+        run: npm test
+        env:
+          NODE_ENV: test
+
+  frontend:
+    name: Frontend (tests + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Correr tests
+        run: npm test -- --watchAll=false
+        env:
+          CI: true
+
+      - name: Build de producción
+        run: npm run build
+        env:
+          # El repo todavía arrastra warnings de ESLint preexistentes
+          # (variables sin usar, deps de useEffect, etc. — ver auditoría).
+          # Con CI=true, react-scripts los trata como errores y el build
+          # fallaría por deuda técnica ajena a este cambio, no por una
+          # regresión real. Se deja CI=false solo para este paso — los
+          # tests arriba sí corren con CI=true (necesario para que no se
+          # queden en modo watch).
+          CI: false

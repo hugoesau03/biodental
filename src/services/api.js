@@ -101,6 +101,19 @@ export const portalService = {
     return response.data;
   },
 
+  solicitarResetPassword: async (email) => {
+    const response = await portalApi.post('/portal/auth/solicitar-reset-password', { email });
+    return response.data;
+  },
+
+  confirmarResetPassword: async (token, newPassword) => {
+    const response = await portalApi.post('/portal/auth/confirmar-reset-password', {
+      token,
+      new_password: newPassword
+    });
+    return response.data;
+  },
+
   getMe: async () => {
     const response = await portalApi.get('/portal/me');
     return response.data;
@@ -111,6 +124,11 @@ export const portalService = {
       current_password: currentPassword,
       new_password: newPassword
     });
+    return response.data;
+  },
+
+  logout: async () => {
+    const response = await portalApi.post('/portal/auth/logout');
     return response.data;
   },
 
@@ -129,8 +147,28 @@ export const portalService = {
     return response.data;
   },
 
+  confirmarCita: async (citaUuid) => {
+    const response = await portalApi.put(`/portal/citas/${citaUuid}/confirmar`);
+    return response.data;
+  },
+
+  cancelarCita: async (citaUuid) => {
+    const response = await portalApi.put(`/portal/citas/${citaUuid}/cancelar`);
+    return response.data;
+  },
+
+  actualizarCita: async (citaUuid, data) => {
+    const response = await portalApi.put(`/portal/citas/${citaUuid}`, data);
+    return response.data;
+  },
+
   getHistorial: async () => {
     const response = await portalApi.get('/portal/historial');
+    return response.data;
+  },
+
+  getFormulariosCompletados: async () => {
+    const response = await portalApi.get('/portal/formularios-completados');
     return response.data;
   },
 
@@ -161,6 +199,21 @@ export const portalService = {
 
   getPromociones: async () => {
     const response = await portalApi.get('/portal/promociones');
+    return response.data;
+  },
+
+  getMisMensajes: async () => {
+    const response = await portalApi.get('/portal/chat');
+    return response.data;
+  },
+
+  enviarMensajeChat: async (mensaje) => {
+    const response = await portalApi.post('/portal/chat', { mensaje });
+    return response.data;
+  },
+
+  getChatNoLeidos: async () => {
+    const response = await portalApi.get('/portal/chat/no-leidos');
     return response.data;
   },
 
@@ -196,6 +249,31 @@ export const canjesService = {
 
   cancelar: async (uuid) => {
     const response = await api.put(`/canjes/${uuid}/cancelar`);
+    return response.data;
+  }
+};
+
+// ============================================
+// CHAT SERVICES (lado staff: chat en vivo con pacientes)
+// ============================================
+export const chatService = {
+  getConversaciones: async () => {
+    const response = await api.get('/chat');
+    return response.data;
+  },
+
+  getMensajes: async (pacienteUuid) => {
+    const response = await api.get(`/chat/${pacienteUuid}`);
+    return response.data;
+  },
+
+  enviarMensaje: async (pacienteUuid, mensaje) => {
+    const response = await api.post(`/chat/${pacienteUuid}`, { mensaje });
+    return response.data;
+  },
+
+  getNoLeidos: async () => {
+    const response = await api.get('/chat/no-leidos');
     return response.data;
   }
 };
@@ -257,9 +335,19 @@ export const authService = {
     return response.data;
   },
 
-  resetPassword: async (email, newPassword) => {
-    const response = await api.post('/auth/reset-password', {
-      email,
+  logout: async () => {
+    const response = await api.post('/auth/logout');
+    return response.data;
+  },
+
+  solicitarResetPassword: async (email) => {
+    const response = await api.post('/auth/solicitar-reset-password', { email });
+    return response.data;
+  },
+
+  confirmarResetPassword: async (token, newPassword) => {
+    const response = await api.post('/auth/confirmar-reset-password', {
+      token,
       new_password: newPassword
     });
     return response.data;
@@ -358,6 +446,13 @@ export const citasService = {
 
   delete: async (uuid) => {
     const response = await api.delete(`/citas/${uuid}`);
+    return response.data;
+  },
+
+  // Check-in de recepción (marcar/desmarcar llegada del paciente), en
+  // conjunto con el check-in que el paciente puede hacer desde su portal.
+  checkin: async (uuid) => {
+    const response = await api.put(`/citas/${uuid}/checkin`);
     return response.data;
   },
 
@@ -738,6 +833,16 @@ export const consultorioService = {
 
   updateWhatsappConfig: async (config) => {
     const response = await api.put('/consultorio/whatsapp', config);
+    return response.data;
+  },
+
+  getAsistenteIAConfig: async () => {
+    const response = await api.get('/consultorio/asistente-whatsapp');
+    return response.data;
+  },
+
+  updateAsistenteIAConfig: async (config) => {
+    const response = await api.put('/consultorio/asistente-whatsapp', config);
     return response.data;
   }
 };

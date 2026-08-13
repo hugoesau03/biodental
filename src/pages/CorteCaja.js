@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { Loader, DollarSign, CreditCard, Banknote, Smartphone, Printer, Plus, TrendingUp, TrendingDown, X } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import { pagosService, movimientosService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -493,6 +494,7 @@ const TipoBadge = styled.span`
 `;
 
 const CorteCaja = () => {
+  const { showAlert } = useAlert();
   const [loading, setLoading] = useState(true);
   const [pagos, setPagos] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
@@ -820,7 +822,7 @@ const CorteCaja = () => {
       await Promise.all([handleApplyFilters(), fetchDataAllTime()]);
     } catch (error) {
       console.error('Error al registrar movimiento:', error);
-      alert('Error al registrar el movimiento');
+      showAlert('Error al registrar el movimiento', { tipo: 'error' });
     }
   };
 

@@ -5,6 +5,7 @@ import { UserPlus, Calendar as CalendarIcon, Clock, AlertCircle, Check, ChevronL
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
 import { usuariosService, pacientesService, serviciosService, horariosService, citasService, consultoriosInternosService, whatsappService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -1011,6 +1012,7 @@ const ConfirmButton = styled(ModalButton)`
 const ReservarCita = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showAlert } = useAlert();
   const [searchParams] = useSearchParams();
   const preselectedDoctor = searchParams.get('doctor'); // UUID del doctor preseleccionado
   
@@ -1605,22 +1607,22 @@ const ReservarCita = () => {
     
     // Validar que haya consultorios disponibles
     if (consultoriosInternos.length === 0) {
-      alert('No hay consultorios registrados. Debe registrar al menos un consultorio para agendar citas.');
+      showAlert('No hay consultorios registrados. Debe registrar al menos un consultorio para agendar citas.', { tipo: 'warning' });
       return;
     }
-    
+
     if (!formData.patientUuid || !formData.doctorUuid || !formData.date || !formData.time) {
-      alert('Por favor complete todos los campos requeridos');
+      showAlert('Por favor complete todos los campos requeridos', { tipo: 'warning' });
       return;
     }
-    
+
     if (formData.services.length === 0) {
-      alert('Por favor seleccione al menos un servicio');
+      showAlert('Por favor seleccione al menos un servicio', { tipo: 'warning' });
       return;
     }
 
     if (!selectedConsultorio) {
-      alert('Por favor seleccione un consultorio');
+      showAlert('Por favor seleccione un consultorio', { tipo: 'warning' });
       return;
     }
     

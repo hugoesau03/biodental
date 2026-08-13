@@ -14,11 +14,13 @@ import {
   Loader,
   Check,
   User,
-  Gift
+  Gift,
+  MessageCircle
 } from 'lucide-react';
 import Header from '../components/Layout/Header';
 import Modal from '../components/Modal';
 import { serviciosService, usuariosService } from '../services/api';
+import { useAlert } from '../context/AlertContext';
 
 const PageContainer = styled.div`
   flex: 1;
@@ -486,6 +488,7 @@ const ServiceInfo = styled.div`
 
 const GestionServicios = () => {
   const navigate = useNavigate();
+  const { showAlert } = useAlert();
   const { id: doctorUuid } = useParams();
 
   // Estado para los servicios
@@ -503,7 +506,8 @@ const GestionServicios = () => {
     price: '',
     duration: '',
     points: '',
-    pointsPrice: ''
+    pointsPrice: '',
+    agendableBot: false
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState(null);
@@ -524,7 +528,8 @@ const GestionServicios = () => {
             price: parseFloat(s.precio) || 0,
             duration: s.duracion_minutos || 30,
             points: s.puntos_recompensa || 0,
-            pointsPrice: s.puntos_precio || 0
+            pointsPrice: s.puntos_precio || 0,
+            agendableBot: !!s.agendable_bot
           }));
           setServices(serviciosFormateados);
         }
@@ -568,7 +573,7 @@ const GestionServicios = () => {
       }
     } catch (err) {
       console.error('Error actualizando servicios del doctor:', err);
-      alert('Error al actualizar servicios');
+      showAlert('Error al actualizar servicios', { tipo: 'error' });
     } finally {
       setSaving(false);
     }
@@ -583,11 +588,12 @@ const GestionServicios = () => {
         price: service.price.toString(),
         duration: service.duration.toString(),
         points: (service.points || 0).toString(),
-        pointsPrice: (service.pointsPrice || 0).toString()
+        pointsPrice: (service.pointsPrice || 0).toString(),
+        agendableBot: !!service.agendableBot
       });
     } else {
       setEditingService(null);
-      setFormData({ name: '', description: '', price: '', duration: '', points: '', pointsPrice: '' });
+      setFormData({ name: '', description: '', price: '', duration: '', points: '', pointsPrice: '', agendableBot: false });
     }
     setShowModal(true);
   };
@@ -595,12 +601,12 @@ const GestionServicios = () => {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingService(null);
-    setFormData({ name: '', description: '', price: '', duration: '', points: '', pointsPrice: '' });
+    setFormData({ name: '', description: '', price: '', duration: '', points: '', pointsPrice: '', agendableBot: false });
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleSave = async () => {
@@ -614,7 +620,8 @@ const GestionServicios = () => {
         precio: parseFloat(formData.price),
         duracion_minutos: parseInt(formData.duration),
         puntos_recompensa: parseInt(formData.points) || 0,
-        puntos_precio: parseInt(formData.pointsPrice) || 0
+        puntos_precio: parseInt(formData.pointsPrice) || 0,
+        agendable_bot: formData.agendableBot
       };
 
       if (editingService) {
@@ -623,7 +630,7 @@ const GestionServicios = () => {
         if (response.success) {
           setServices(prev => prev.map(s =>
             s.id === editingService.id
-              ? { ...s, name: formData.name, description: formData.description, price: parseFloat(formData.price), duration: parseInt(formData.duration), points: parseInt(formData.points) || 0, pointsPrice: parseInt(formData.pointsPrice) || 0 }
+              ? { ...s, name: formData.name, description: formData.description, price: parseFloat(formData.price), duration: parseInt(formData.duration), points: parseInt(formData.points) || 0, pointsPrice: parseInt(formData.pointsPrice) || 0, agendableBot: formData.agendableBot }
               : s
           ));
         }
@@ -639,7 +646,8 @@ const GestionServicios = () => {
             price: parseFloat(formData.price),
             duration: parseInt(formData.duration),
             points: parseInt(formData.points) || 0,
-            pointsPrice: parseInt(formData.pointsPrice) || 0
+            pointsPrice: parseInt(formData.pointsPrice) || 0,
+            agendableBot: formData.agendableBot
           };
           setServices(prev => [...prev, newService]);
           
@@ -658,7 +666,7 @@ const GestionServicios = () => {
       handleCloseModal();
     } catch (err) {
       console.error('Error guardando servicio:', err);
-      alert('Error al guardar el servicio');
+      showAlert('Error al guardar el servicio', { tipo: 'error' });
     } finally {
       setSaving(false);
     }
@@ -678,7 +686,7 @@ const GestionServicios = () => {
         }
       } catch (err) {
         console.error('Error eliminando servicio:', err);
-        alert('Error al eliminar el servicio');
+        showAlert('Error al eliminar el servicio', { tipo: 'error' });
       }
     }
     setShowDeleteModal(false);
@@ -875,6 +883,20 @@ const GestionServicios = () => {
                     step="1"
                   />
                 </FormGroup>
+
+                <FormGroup>
+                  <Label style={{ cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      name="agendableBot"
+                      checked={formData.agendableBot}
+                      onChange={handleInputChange}
+                      style={{ width: 16, height: 16 }}
+                    />
+                    <MessageCircle size={16} />
+                    Agendable desde el asistente de WhatsApp
+                  </Label>
+                </FormGroup>
               </ModalBody>
 
               <ModalFooter>
@@ -926,6 +948,12 @@ const GestionServicios = () => {
                   <ServicePoints>
                     <Gift />
                     Canje: {service.pointsPrice} pts
+                  </ServicePoints>
+                )}
+                {service.agendableBot && (
+                  <ServicePoints>
+                    <MessageCircle />
+                    Agendable por WhatsApp
                   </ServicePoints>
                 )}
               </ServiceMeta>
@@ -1056,6 +1084,20 @@ const GestionServicios = () => {
                   min="0"
                   step="1"
                 />
+              </FormGroup>
+
+              <FormGroup>
+                <Label style={{ cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    name="agendableBot"
+                    checked={formData.agendableBot}
+                    onChange={handleInputChange}
+                    style={{ width: 16, height: 16 }}
+                  />
+                  <MessageCircle size={16} />
+                  Agendable desde el asistente de WhatsApp
+                </Label>
               </FormGroup>
             </ModalBody>
 

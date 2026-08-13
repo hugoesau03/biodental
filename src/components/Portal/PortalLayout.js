@@ -1,43 +1,74 @@
 import React from 'react';
 import styled from 'styled-components';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { Home, CalendarPlus, History, Wallet, Gift, LogOut, Loader } from 'lucide-react';
+import { Home, CalendarPlus, History, Wallet, Gift, LogOut, Loader, Stethoscope, User, HelpCircle } from 'lucide-react';
 import { usePortalAuth } from '../../context/PortalAuthContext';
+import PortalChatBubble from './PortalChatBubble';
 
 const Header = styled.header`
   position: sticky;
   top: 0;
   z-index: 50;
-  background: ${({ theme }) => theme.colors.white};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  background: linear-gradient(135deg, #33A9FF 0%, #1E88E5 100%);
+  box-shadow: 0 2px 10px rgba(30, 136, 229, 0.3);
   padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+`;
+
+const HeaderLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const LogoIcon = styled.div`
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  svg { width: 20px; height: 20px; color: white; }
 `;
 
 const Greeting = styled.div`
   font-size: 15px;
   font-weight: 600;
-  color: ${({ theme }) => theme.colors.text};
+  color: white;
 
   span {
     display: block;
     font-size: 12px;
     font-weight: 400;
-    color: ${({ theme }) => theme.colors.textSecondary};
+    color: rgba(255, 255, 255, 0.85);
   }
 `;
 
-const LogoutButton = styled.button`
-  background: none;
+const HeaderRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const HeaderIconButton = styled.button`
+  background: rgba(255, 255, 255, 0.15);
   border: none;
+  border-radius: 10px;
   cursor: pointer;
   padding: 8px;
   display: flex;
-  color: ${({ theme }) => theme.colors.textSecondary};
+  color: white;
 
   svg { width: 20px; height: 20px; }
+`;
+
+const LogoutButton = styled(HeaderIconButton)`
   &:hover { color: ${({ theme }) => theme.colors.dangerText}; }
 `;
 
@@ -97,6 +128,7 @@ const navItems = [
   { path: '/portal/historial', icon: History, label: 'Historial' },
   { path: '/portal/cuenta', icon: Wallet, label: 'Cuenta' },
   { path: '/portal/recompensas', icon: Gift, label: 'Puntos' },
+  { path: '/portal/perfil', icon: User, label: 'Perfil' },
 ];
 
 export const PortalHeader = () => {
@@ -110,13 +142,23 @@ export const PortalHeader = () => {
 
   return (
     <Header>
-      <Greeting>
-        {paciente ? `Hola, ${paciente.nombre}` : 'Portal del paciente'}
-        <span>Biodental</span>
-      </Greeting>
-      <LogoutButton onClick={handleLogout} title="Cerrar sesión">
-        <LogOut />
-      </LogoutButton>
+      <HeaderLeft>
+        <LogoIcon>
+          <Stethoscope />
+        </LogoIcon>
+        <Greeting>
+          {paciente ? `Hola, ${paciente.nombre}` : 'Portal del paciente'}
+          <span>Bio Dental</span>
+        </Greeting>
+      </HeaderLeft>
+      <HeaderRight>
+        <HeaderIconButton onClick={() => navigate('/portal/faq')} title="Preguntas frecuentes">
+          <HelpCircle />
+        </HeaderIconButton>
+        <LogoutButton onClick={handleLogout} title="Cerrar sesión">
+          <LogOut />
+        </LogoutButton>
+      </HeaderRight>
     </Header>
   );
 };
@@ -160,6 +202,7 @@ export const PortalProtectedRoute = ({ children }) => {
     <>
       <PortalHeader />
       {children}
+      <PortalChatBubble />
       <PortalBottomNav />
     </>
   );

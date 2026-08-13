@@ -1,9 +1,17 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/database');
 const { asyncHandler } = require('../middleware');
-const { createCita } = require('./citasController');
+const { enviarEmailResetPassword } = require('../services/emailService');
+const {
+  createCita,
+  validarDisponibilidadDoctor,
+  eliminarBloqueosDeCita,
+  formatFechaLocal,
+  calcularHoraFin
+} = require('./citasController');
 
 /**
  * Portal de pacientes: autenticación, historial, reserva de citas, check-in,
@@ -24,7 +32,7 @@ const { createCita } = require('./citasController');
  * POST /api/portal/auth/registro
  */
 const registro = asyncHandler(async (req, res) => {
-  const { telefono, fecha_nacimiento, password } = req.body;
+  const { telefono, fecha_nacimiento, password, terminos_aceptados, privacidad_aceptada } = req.body;
 
   if (!telefono || !fecha_nacimiento || !password) {
     return res.status(400).json({
@@ -37,6 +45,24 @@ const registro = asyncHandler(async (req, res) => {
     return res.status(400).json({
       success: false,
       message: 'La contraseña debe tener al menos 8 caracteres'
+    });
+  }
+
+  if (terminos_aceptados !== true) {
+    return res.status(400).json({
+      success: false,
+      message: 'Debes aceptar los términos y condiciones para activar tu acceso'
+    });
+  }
+
+  // Consentimiento expreso al Aviso de Privacidad, distinto de aceptar los
+  // términos: el Portal trata datos de salud (sensibles conforme a la
+  // LFPDPPP), que requieren consentimiento expreso y por escrito propio,
+  // no solo la aceptación general de los términos de uso.
+  if (privacidad_aceptada !== true) {
+    return res.status(400).json({
+      success: false,
+      message: 'Debes leer el Aviso de Privacidad y dar tu consentimiento para el tratamiento de tus datos'
     });
   }
 
@@ -64,10 +90,16 @@ const registro = asyncHandler(async (req, res) => {
   }
 
   const paciente = pacientes[0];
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12);
   const passwordHash = await bcrypt.hash(password, salt);
 
-  await pool.query('UPDATE pacientes SET password_hash = ? WHERE id = ?', [passwordHash, paciente.id]);
+  // terminos_aceptados_en / privacidad_aceptada_en dejan constancia de
+  // cuándo se aceptó cada documento — evidencia de consentimiento si hace
+  // falta acreditarlo.
+  await pool.query(
+    'UPDATE pacientes SET password_hash = ?, terminos_aceptados_en = NOW(), privacidad_aceptada_en = NOW() WHERE id = ?',
+    [passwordHash, paciente.id]
+  );
 
   const token = jwt.sign(
     { pacienteId: paciente.id, tipo: 'paciente' },
@@ -141,6 +173,141 @@ const login = asyncHandler(async (req, res) => {
   });
 });
 
+// Tiempo de validez de un token de restablecimiento de contraseña del portal
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
+const MENSAJE_SOLICITUD_RESET_PORTAL = 'Si existe una cuenta activa con ese correo, te enviamos un enlace para restablecer tu contraseña.';
+
+/**
+ * Solicitar restablecimiento de contraseña del portal — paso 1 de "olvidé
+ * mi contraseña". El login del portal usa teléfono, pero la recuperación
+ * usa correo (canal verificable para enviar el enlace); un paciente sin
+ * correo registrado no puede recuperar el acceso por este medio y debe
+ * acudir a la clínica. Mismo mecanismo de token de un solo uso que el
+ * staff (ver authController.solicitarResetPassword) — token hasheado con
+ * SHA-256, válido 1 hora, mensaje siempre genérico para no revelar qué
+ * correos están registrados.
+ * POST /api/portal/auth/solicitar-reset-password
+ */
+const solicitarResetPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: 'Se requiere un correo electrónico'
+    });
+  }
+
+  const [pacientes] = await pool.query(
+    `SELECT p.id, p.nombre, p.email FROM pacientes p
+     JOIN consultorios c ON p.consultorio_id = c.id
+     WHERE p.email = ? AND p.password_hash IS NOT NULL AND p.activo = TRUE AND c.activo = TRUE`,
+    [email]
+  );
+
+  if (pacientes.length === 0) {
+    // Mismo mensaje que en el caso de éxito — no revelar si la cuenta existe.
+    return res.json({ success: true, message: MENSAJE_SOLICITUD_RESET_PORTAL });
+  }
+
+  const paciente = pacientes[0];
+
+  await pool.query(
+    'DELETE FROM portal_password_reset_tokens WHERE paciente_id = ? AND usado_en IS NULL',
+    [paciente.id]
+  );
+
+  const tokenPlano = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(tokenPlano).digest('hex');
+  const expiracion = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+  await pool.query(
+    'INSERT INTO portal_password_reset_tokens (paciente_id, token_hash, fecha_expiracion) VALUES (?, ?, ?)',
+    [paciente.id, tokenHash, expiracion]
+  );
+
+  const baseUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+  const resetUrl = `${baseUrl}/portal/restablecer-password?token=${tokenPlano}`;
+
+  try {
+    await enviarEmailResetPassword({ to: paciente.email, nombre: paciente.nombre, resetUrl });
+  } catch (error) {
+    console.error('Error enviando correo de restablecimiento de contraseña (portal):', error.message);
+  }
+
+  res.json({ success: true, message: MENSAJE_SOLICITUD_RESET_PORTAL });
+});
+
+/**
+ * Confirmar restablecimiento de contraseña del portal — paso 2. Mismas
+ * reglas que el staff: token válido, no usado, no expirado.
+ * POST /api/portal/auth/confirmar-reset-password
+ */
+const confirmarResetPassword = asyncHandler(async (req, res) => {
+  const { token, new_password } = req.body;
+
+  if (!token || !new_password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Se requiere el token del enlace y la nueva contraseña'
+    });
+  }
+
+  if (String(new_password).length < 8) {
+    return res.status(400).json({
+      success: false,
+      message: 'La nueva contraseña debe tener al menos 8 caracteres'
+    });
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+  const [tokens] = await pool.query(
+    'SELECT id, paciente_id, fecha_expiracion, usado_en FROM portal_password_reset_tokens WHERE token_hash = ?',
+    [tokenHash]
+  );
+
+  if (tokens.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'El enlace no es válido. Solicita uno nuevo.'
+    });
+  }
+
+  const resetToken = tokens[0];
+
+  if (resetToken.usado_en) {
+    return res.status(400).json({
+      success: false,
+      message: 'Este enlace ya fue utilizado. Solicita uno nuevo.'
+    });
+  }
+
+  if (new Date(resetToken.fecha_expiracion) < new Date()) {
+    return res.status(400).json({
+      success: false,
+      message: 'El enlace expiró. Solicita uno nuevo.'
+    });
+  }
+
+  const salt = await bcrypt.genSalt(12);
+  const passwordHash = await bcrypt.hash(new_password, salt);
+
+  // tokens_invalidos_antes = NOW(): cierra cualquier otra sesión del portal
+  // abierta con la contraseña anterior (mismo motivo que en el staff — un
+  // reset suele significar que alguien perdió acceso, o alguien más lo tuvo).
+  await pool.query(
+    'UPDATE pacientes SET password_hash = ?, tokens_invalidos_antes = NOW() WHERE id = ?',
+    [passwordHash, resetToken.paciente_id]
+  );
+  await pool.query('UPDATE portal_password_reset_tokens SET usado_en = NOW() WHERE id = ?', [resetToken.id]);
+
+  res.json({
+    success: true,
+    message: 'Contraseña restablecida correctamente. Ya puedes iniciar sesión.'
+  });
+});
+
 /**
  * Perfil del paciente autenticado.
  * GET /api/portal/me
@@ -157,6 +324,31 @@ const getMe = asyncHandler(async (req, res) => {
   );
 
   res.json({ success: true, data: { paciente: rows[0] } });
+});
+
+/**
+ * Formularios clínicos que el paciente ya llenó (o le llenaron en
+ * consultorio). Misma info que ve el staff en el perfil del paciente,
+ * pero acotada a la sesión del propio paciente.
+ * GET /api/portal/formularios-completados
+ */
+const getFormulariosCompletadosPortal = asyncHandler(async (req, res) => {
+  const [completados] = await pool.query(
+    `SELECT fc.id, fc.datos, fc.firma_url, fc.fecha_completado,
+            f.uuid as formulario_uuid, f.nombre as formulario_nombre, f.campos as formulario_campos
+     FROM formularios_completados fc
+     JOIN formularios f ON fc.formulario_id = f.id
+     WHERE fc.paciente_id = ? AND f.consultorio_id = ?
+     ORDER BY fc.fecha_completado DESC`,
+    [req.pacienteId, req.consultorioId]
+  );
+
+  for (const fc of completados) {
+    if (typeof fc.datos === 'string') fc.datos = JSON.parse(fc.datos);
+    if (typeof fc.formulario_campos === 'string') fc.formulario_campos = JSON.parse(fc.formulario_campos);
+  }
+
+  res.json({ success: true, data: { formularios_completados: completados } });
 });
 
 /**
@@ -187,11 +379,31 @@ const updatePassword = asyncHandler(async (req, res) => {
     return res.status(401).json({ success: false, message: 'Contraseña actual incorrecta' });
   }
 
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12);
   const passwordHash = await bcrypt.hash(new_password, salt);
-  await pool.query('UPDATE pacientes SET password_hash = ? WHERE id = ?', [passwordHash, req.pacienteId]);
+  // tokens_invalidos_antes = NOW(): cierra cualquier otra sesión del
+  // portal abierta con la contraseña anterior (mismo mecanismo que el
+  // staff — ver authController.updatePassword).
+  await pool.query(
+    'UPDATE pacientes SET password_hash = ?, tokens_invalidos_antes = NOW() WHERE id = ?',
+    [passwordHash, req.pacienteId]
+  );
 
   res.json({ success: true, message: 'Contraseña actualizada exitosamente' });
+});
+
+/**
+ * Cerrar sesión en todos los dispositivos del portal — mismo mecanismo
+ * que el logout de staff (ver authController.logout).
+ * POST /api/portal/auth/logout
+ */
+const logout = asyncHandler(async (req, res) => {
+  await pool.query(
+    'UPDATE pacientes SET tokens_invalidos_antes = NOW() WHERE id = ?',
+    [req.pacienteId]
+  );
+
+  res.json({ success: true, message: 'Sesión cerrada en todos los dispositivos' });
 });
 
 // ============================================
@@ -206,7 +418,7 @@ const getCitasProximas = asyncHandler(async (req, res) => {
   const [citas] = await pool.query(
     `SELECT c.uuid, c.fecha, c.hora_inicio, c.hora_fin, c.estado, c.tipo, c.motivo,
             c.precio_total, c.pagado, c.checkin_at,
-            u.nombre as doctor_nombre, u.apellidos as doctor_apellidos, u.especialidad
+            u.uuid as doctor_uuid, u.nombre as doctor_nombre, u.apellidos as doctor_apellidos, u.especialidad
      FROM citas c
      JOIN usuarios u ON c.doctor_id = u.id
      WHERE c.paciente_id = ? AND c.consultorio_id = ?
@@ -239,7 +451,7 @@ const getHistorial = asyncHandler(async (req, res) => {
 
   for (const cita of citas) {
     const [servicios] = await pool.query(
-      `SELECT s.nombre, cs.precio
+      `SELECT s.nombre, cs.precio, cs.cantidad
        FROM cita_servicios cs
        JOIN servicios s ON cs.servicio_id = s.id
        JOIN citas c ON cs.cita_id = c.id
@@ -326,6 +538,136 @@ const checkinCita = asyncHandler(async (req, res) => {
     message: 'Check-in registrado',
     data: { checkin_at: actualizada[0].checkin_at }
   });
+});
+
+/**
+ * El paciente confirma que asistirá a su cita.
+ * PUT /api/portal/citas/:uuid/confirmar
+ */
+const confirmarCita = asyncHandler(async (req, res) => {
+  const { uuid } = req.params;
+
+  const [citas] = await pool.query(
+    'SELECT id, estado FROM citas WHERE uuid = ? AND paciente_id = ? AND consultorio_id = ?',
+    [uuid, req.pacienteId, req.consultorioId]
+  );
+
+  if (citas.length === 0) {
+    return res.status(404).json({ success: false, message: 'Cita no encontrada' });
+  }
+
+  if (!['programada', 'reprogramada'].includes(citas[0].estado)) {
+    return res.status(400).json({ success: false, message: 'Esta cita ya no se puede confirmar' });
+  }
+
+  await pool.query('UPDATE citas SET estado = "confirmada" WHERE id = ?', [citas[0].id]);
+
+  res.json({ success: true, message: 'Cita confirmada' });
+});
+
+/**
+ * El paciente cancela su propia cita. Libera el horario (elimina bloqueos
+ * asociados) igual que cuando el personal cancela desde el detalle de cita.
+ * PUT /api/portal/citas/:uuid/cancelar
+ */
+const cancelarCitaPortal = asyncHandler(async (req, res) => {
+  const { uuid } = req.params;
+
+  const [citas] = await pool.query(
+    `SELECT id, doctor_id, fecha, hora_inicio, hora_fin, estado
+     FROM citas WHERE uuid = ? AND paciente_id = ? AND consultorio_id = ?`,
+    [uuid, req.pacienteId, req.consultorioId]
+  );
+
+  if (citas.length === 0) {
+    return res.status(404).json({ success: false, message: 'Cita no encontrada' });
+  }
+
+  if (['cancelada', 'completada', 'no_asistio'].includes(citas[0].estado)) {
+    return res.status(400).json({ success: false, message: 'Esta cita ya no se puede cancelar' });
+  }
+
+  await eliminarBloqueosDeCita(citas[0].id, citas[0]);
+  await pool.query('UPDATE citas SET estado = "cancelada" WHERE id = ?', [citas[0].id]);
+
+  res.json({ success: true, message: 'Cita cancelada' });
+});
+
+/**
+ * El paciente reagenda (nueva fecha/hora, validando disponibilidad del
+ * doctor igual que el personal) o modifica el motivo de su propia cita.
+ * PUT /api/portal/citas/:uuid
+ */
+const actualizarCitaPortal = asyncHandler(async (req, res) => {
+  const { uuid } = req.params;
+  const { fecha, hora_inicio, motivo } = req.body;
+
+  const [citas] = await pool.query(
+    `SELECT id, doctor_id, fecha, hora_inicio, hora_fin, estado
+     FROM citas WHERE uuid = ? AND paciente_id = ? AND consultorio_id = ?`,
+    [uuid, req.pacienteId, req.consultorioId]
+  );
+
+  if (citas.length === 0) {
+    return res.status(404).json({ success: false, message: 'Cita no encontrada' });
+  }
+
+  const cita = citas[0];
+
+  if (['cancelada', 'completada', 'no_asistio'].includes(cita.estado)) {
+    return res.status(400).json({ success: false, message: 'Esta cita ya no se puede modificar' });
+  }
+
+  const fieldsToUpdate = {};
+
+  if (fecha || hora_inicio) {
+    const nuevaFecha = fecha || formatFechaLocal(cita.fecha);
+    const nuevaHoraInicio = hora_inicio || String(cita.hora_inicio).substring(0, 5);
+
+    if (nuevaFecha < formatFechaLocal(new Date())) {
+      return res.status(400).json({ success: false, message: 'No se puede reagendar a una fecha pasada' });
+    }
+
+    // Conservar la misma duración de la cita original
+    const [hi, mi] = String(cita.hora_inicio).substring(0, 5).split(':').map(Number);
+    const [hf, mf] = String(cita.hora_fin).substring(0, 5).split(':').map(Number);
+    const duracionMinutos = Math.max((hf * 60 + mf) - (hi * 60 + mi), 0) || 30;
+    const nuevaHoraFin = calcularHoraFin(nuevaHoraInicio, duracionMinutos);
+
+    // Liberar el bloqueo del horario viejo antes de validar el nuevo,
+    // para que no choque consigo mismo
+    await eliminarBloqueosDeCita(cita.id, cita);
+
+    const disponibilidad = await validarDisponibilidadDoctor(
+      cita.doctor_id, nuevaFecha, nuevaHoraInicio, nuevaHoraFin, cita.id
+    );
+
+    if (disponibilidad.error) {
+      return res.status(400).json({ success: false, message: disponibilidad.error });
+    }
+
+    fieldsToUpdate.fecha = nuevaFecha;
+    fieldsToUpdate.hora_inicio = nuevaHoraInicio;
+    fieldsToUpdate.hora_fin = nuevaHoraFin;
+    fieldsToUpdate.estado = 'reprogramada';
+    fieldsToUpdate.checkin_at = null;
+  }
+
+  if (motivo !== undefined) {
+    fieldsToUpdate.motivo = motivo;
+  }
+
+  if (Object.keys(fieldsToUpdate).length === 0) {
+    return res.status(400).json({ success: false, message: 'No hay cambios para guardar' });
+  }
+
+  const setClause = Object.keys(fieldsToUpdate).map(f => `${f} = ?`).join(', ');
+  await pool.query(
+    `UPDATE citas SET ${setClause} WHERE id = ?`,
+    [...Object.values(fieldsToUpdate), cita.id]
+  );
+
+  res.json({ success: true, message: 'Cita actualizada exitosamente' });
 });
 
 // ============================================
@@ -557,7 +899,7 @@ const getMisCanjes = asyncHandler(async (req, res) => {
  */
 const getPromocionesActivas = asyncHandler(async (req, res) => {
   const [promociones] = await pool.query(
-    `SELECT uuid, titulo, mensaje, icono, color, fecha_inicio, fecha_fin
+    `SELECT uuid, titulo, mensaje, icono, color, imagen_blob, fecha_inicio, fecha_fin
      FROM promociones
      WHERE consultorio_id = ? AND activa = TRUE
      AND (fecha_inicio IS NULL OR fecha_inicio <= CURDATE())
@@ -572,13 +914,20 @@ const getPromocionesActivas = asyncHandler(async (req, res) => {
 module.exports = {
   registro,
   login,
+  solicitarResetPassword,
+  confirmarResetPassword,
   getMe,
   updatePassword,
+  logout,
   getCitasProximas,
   getHistorial,
   getDoctoresDisponibles,
   crearCitaPortal,
   checkinCita,
+  confirmarCita,
+  cancelarCitaPortal,
+  actualizarCitaPortal,
+  getFormulariosCompletadosPortal,
   getCuenta,
   getRecompensas,
   getCanjeCatalogo,
