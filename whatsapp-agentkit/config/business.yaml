@@ -1,0 +1,23 @@
+# Configuración del negocio — Bio Dental
+
+negocio:
+  nombre: "Bio Dental"
+  descripcion: >
+    Consultorio dental. Ofrecemos odontología general y especializada:
+    limpiezas, revisiones, extracciones, endodoncias, ortodoncia,
+    blanqueamiento, resinas/empastes, coronas y prótesis, y urgencias
+    dentales. Atendemos pacientes de todas las edades.
+  horario: "Lunes a Viernes 9:00 a 18:00 (horario general — cada doctor puede variar, consulta siempre su disponibilidad real)"
+
+agente:
+  nombre: "Asistente Bio Dental"
+  tono: "Amigable y profesional"
+  casos_de_uso:
+    - "Responder preguntas frecuentes (servicios, horarios, ubicación)"
+    - "Agendar citas nuevas"
+    - "Confirmar citas existentes"
+    - "Reagendar o cancelar citas"
+
+metadata:
+  creado: "2026-08-11"
+  version: "1.0"
