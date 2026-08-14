@@ -75,12 +75,23 @@ export const PortalButton = styled.button`
 
 export const PortalInput = styled.input`
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 14px 16px;
   border: 2px solid ${({ theme }) => theme.colors.border};
   border-radius: 12px;
   font-size: 15px;
   background: ${({ theme }) => theme.colors.background};
   color: ${({ theme }) => theme.colors.text};
+
+  /* input[type=date/time] traen su propio selector nativo (reloj/calendario)
+     cuyo ancho mínimo el navegador puede calcular más grande que el
+     contenedor en pantallas angostas — esto evita que se desborde. */
+  &[type="date"],
+  &[type="time"],
+  &[type="datetime-local"] {
+    -webkit-min-logical-width: 0;
+  }
 
   &:focus {
     outline: none;

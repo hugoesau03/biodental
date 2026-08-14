@@ -55,6 +55,7 @@ const InputWrapper = styled.div`
   display: flex;
   align-items: center;
   input { padding-left: 44px; }
+  ${({ $withToggle }) => $withToggle && `input { padding-right: 44px; }`}
 `;
 
 const InputIcon = styled.div`
@@ -196,7 +197,7 @@ const PortalRegistro = () => {
 
           <div>
             <PortalLabel>Crea una contraseña</PortalLabel>
-            <InputWrapper>
+            <InputWrapper $withToggle>
               <InputIcon><Lock /></InputIcon>
               <PortalInput
                 type={showPassword ? 'text' : 'password'}

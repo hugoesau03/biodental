@@ -201,7 +201,7 @@ const PortalReservar = () => {
             <DoctorOption key={d.uuid} onClick={() => elegirDoctor(d)}>
               <div className="avatar"><Stethoscope /></div>
               <div>
-                <div className="nombre">Dr(a). {d.nombre} {d.apellidos}</div>
+                <div className="nombre">{d.nombre} {d.apellidos}</div>
                 {d.especialidad && <div className="esp">{d.especialidad}</div>}
               </div>
             </DoctorOption>
@@ -272,7 +272,7 @@ const PortalReservar = () => {
           <PortalCard>
             <PortalLabel>Resumen</PortalLabel>
             <p style={{ fontSize: 14, marginTop: 4 }}>
-              Dr(a). {doctor.nombre} {doctor.apellidos}<br />
+              {doctor.nombre} {doctor.apellidos}<br />
               {servicio ? `${servicio.nombre} · ` : ''}{fecha} a las {hora}
             </p>
 

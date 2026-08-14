@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bio Dental</string>
+    <string name="title_activity_main">Bio Dental</string>
+    <string name="package_name">com.biodental.app</string>
+    <string name="custom_url_scheme">com.biodental.app</string>
+</resources>

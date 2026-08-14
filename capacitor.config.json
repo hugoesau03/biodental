@@ -1,0 +1,8 @@
+{
+  "appId": "com.biodental.app",
+  "appName": "Bio Dental",
+  "webDir": "build",
+  "server": {
+    "androidScheme": "https"
+  }
+}
